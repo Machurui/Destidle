@@ -15,14 +15,14 @@ public class DailyPickerTests
     }
 
     [Fact]
-    public void CategoryChangesIndexIndependently()
+    public void CategoriesProduceIndependentSequences()
     {
-        var d = new DateOnly(2026, 7, 16);
-        var w = DailyPicker.PickIndex("secret", d, ItemCategory.Weapon, 250);
-        var a = DailyPicker.PickIndex("secret", d, ItemCategory.Armor, 250);
-        // pas forcément différents, mais le calcul doit être stable et borné
-        Assert.InRange(w, 0, 249);
-        Assert.InRange(a, 0, 249);
+        var dates = Enumerable.Range(0, 20).Select(i => new DateOnly(2026, 1, 1).AddDays(i)).ToArray();
+        var w = dates.Select(d => DailyPicker.PickIndex("secret", d, ItemCategory.Weapon, 250)).ToArray();
+        var a = dates.Select(d => DailyPicker.PickIndex("secret", d, ItemCategory.Armor, 250)).ToArray();
+        Assert.NotEqual(w, a); // si la catégorie était ignorée, les séquences seraient identiques
+        Assert.All(w, i => Assert.InRange(i, 0, 249));
+        Assert.All(a, i => Assert.InRange(i, 0, 249));
     }
 
     [Fact]
