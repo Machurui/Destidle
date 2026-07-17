@@ -1,0 +1,9 @@
+.superpowers/
+bin/
+obj/
+*.user
+backend/Destidle.Api/AppData/
+backend/artifacts/
+node_modules/
+frontend/dist/
+.DS_Store

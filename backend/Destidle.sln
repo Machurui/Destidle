@@ -1,0 +1,40 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Destidle.Core", "Destidle.Core\Destidle.Core.csproj", "{F1485C8D-3ECC-4925-B4D0-61BC0ABF3E28}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Destidle.Importer", "Destidle.Importer\Destidle.Importer.csproj", "{15BA0D7F-C19E-42D5-8406-EE9707FECE27}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Destidle.Api", "Destidle.Api\Destidle.Api.csproj", "{F93AD576-45EA-4419-B2FB-AB8CDC0721A6}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Destidle.Tests", "Destidle.Tests\Destidle.Tests.csproj", "{231B78FE-E319-4FDE-BF23-C0527748BD10}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{F1485C8D-3ECC-4925-B4D0-61BC0ABF3E28}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F1485C8D-3ECC-4925-B4D0-61BC0ABF3E28}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F1485C8D-3ECC-4925-B4D0-61BC0ABF3E28}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F1485C8D-3ECC-4925-B4D0-61BC0ABF3E28}.Release|Any CPU.Build.0 = Release|Any CPU
+		{15BA0D7F-C19E-42D5-8406-EE9707FECE27}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{15BA0D7F-C19E-42D5-8406-EE9707FECE27}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{15BA0D7F-C19E-42D5-8406-EE9707FECE27}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{15BA0D7F-C19E-42D5-8406-EE9707FECE27}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F93AD576-45EA-4419-B2FB-AB8CDC0721A6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F93AD576-45EA-4419-B2FB-AB8CDC0721A6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F93AD576-45EA-4419-B2FB-AB8CDC0721A6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F93AD576-45EA-4419-B2FB-AB8CDC0721A6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{231B78FE-E319-4FDE-BF23-C0527748BD10}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{231B78FE-E319-4FDE-BF23-C0527748BD10}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{231B78FE-E319-4FDE-BF23-C0527748BD10}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{231B78FE-E319-4FDE-BF23-C0527748BD10}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
