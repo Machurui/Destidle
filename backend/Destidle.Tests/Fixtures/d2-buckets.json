@@ -1,0 +1,326 @@
+{
+  "en": {
+    "1498876634": {
+      "displayProperties": {
+        "description": "Weapons that deal kinetic damage. Most effective when dealing with unshielded enemies.",
+        "name": "Kinetic Weapons",
+        "iconHash": 0,
+        "hasIcon": false
+      },
+      "scope": 0,
+      "category": 3,
+      "bucketOrder": 20,
+      "itemCount": 10,
+      "location": 1,
+      "hasTransferDestination": true,
+      "enabled": true,
+      "fifo": false,
+      "hash": 1498876634,
+      "index": 0,
+      "redacted": false,
+      "blacklisted": false
+    },
+    "2465295065": {
+      "displayProperties": {
+        "description": "Weapons that deal Arc, Solar, or Void damage. Most effective when dealing with shielded enemies.",
+        "name": "Energy Weapons",
+        "iconHash": 0,
+        "hasIcon": false
+      },
+      "scope": 0,
+      "category": 3,
+      "bucketOrder": 30,
+      "itemCount": 10,
+      "location": 1,
+      "hasTransferDestination": true,
+      "enabled": true,
+      "fifo": false,
+      "hash": 2465295065,
+      "index": 1,
+      "redacted": false,
+      "blacklisted": false
+    },
+    "953998645": {
+      "displayProperties": {
+        "description": "Machine guns and rocket launchers.",
+        "name": "Power Weapons",
+        "iconHash": 0,
+        "hasIcon": false
+      },
+      "scope": 0,
+      "category": 3,
+      "bucketOrder": 40,
+      "itemCount": 10,
+      "location": 1,
+      "hasTransferDestination": true,
+      "enabled": true,
+      "fifo": false,
+      "hash": 953998645,
+      "index": 2,
+      "redacted": false,
+      "blacklisted": false
+    },
+    "3448274439": {
+      "displayProperties": {
+        "description": "Helmets and hoods.",
+        "name": "Helmet",
+        "iconHash": 0,
+        "hasIcon": false
+      },
+      "scope": 0,
+      "category": 3,
+      "bucketOrder": 50,
+      "itemCount": 10,
+      "location": 1,
+      "hasTransferDestination": true,
+      "enabled": true,
+      "fifo": false,
+      "hash": 3448274439,
+      "index": 3,
+      "redacted": false,
+      "blacklisted": false
+    },
+    "3551918588": {
+      "displayProperties": {
+        "description": "Gloves and gauntlets.",
+        "name": "Gauntlets",
+        "iconHash": 0,
+        "hasIcon": false
+      },
+      "scope": 0,
+      "category": 3,
+      "bucketOrder": 60,
+      "itemCount": 10,
+      "location": 1,
+      "hasTransferDestination": true,
+      "enabled": true,
+      "fifo": false,
+      "hash": 3551918588,
+      "index": 4,
+      "redacted": false,
+      "blacklisted": false
+    },
+    "14239492": {
+      "displayProperties": {
+        "description": "Cuirasses, jackets, and vestments.",
+        "name": "Chest Armor",
+        "iconHash": 0,
+        "hasIcon": false
+      },
+      "scope": 0,
+      "category": 3,
+      "bucketOrder": 70,
+      "itemCount": 10,
+      "location": 1,
+      "hasTransferDestination": true,
+      "enabled": true,
+      "fifo": false,
+      "hash": 14239492,
+      "index": 5,
+      "redacted": false,
+      "blacklisted": false
+    },
+    "20886954": {
+      "displayProperties": {
+        "description": "Greaves and leggings.",
+        "name": "Leg Armor",
+        "iconHash": 0,
+        "hasIcon": false
+      },
+      "scope": 0,
+      "category": 3,
+      "bucketOrder": 80,
+      "itemCount": 10,
+      "location": 1,
+      "hasTransferDestination": true,
+      "enabled": true,
+      "fifo": false,
+      "hash": 20886954,
+      "index": 6,
+      "redacted": false,
+      "blacklisted": false
+    },
+    "1585787867": {
+      "displayProperties": {
+        "description": "Marks, bonds, and cloaks.",
+        "name": "Class Armor",
+        "iconHash": 0,
+        "hasIcon": false
+      },
+      "scope": 0,
+      "category": 3,
+      "bucketOrder": 90,
+      "itemCount": 10,
+      "location": 1,
+      "hasTransferDestination": true,
+      "enabled": true,
+      "fifo": false,
+      "hash": 1585787867,
+      "index": 7,
+      "redacted": false,
+      "blacklisted": false
+    }
+  },
+  "fr": {
+    "1498876634": {
+      "displayProperties": {
+        "description": "Armes qui infligent des dégâts cinétiques. Elles sont plus efficaces contre les ennemis dépourvus de bouclier.",
+        "name": "Armes cinétiques",
+        "iconHash": 0,
+        "hasIcon": false
+      },
+      "scope": 0,
+      "category": 3,
+      "bucketOrder": 20,
+      "itemCount": 10,
+      "location": 1,
+      "hasTransferDestination": true,
+      "enabled": true,
+      "fifo": false,
+      "hash": 1498876634,
+      "index": 0,
+      "redacted": false,
+      "blacklisted": false
+    },
+    "2465295065": {
+      "displayProperties": {
+        "description": "Armes qui infligent des dégâts cryo-électriques, solaires ou abyssaux. Elles sont plus efficaces contre les ennemis pourvus de bouclier.",
+        "name": "Armes énergétiques",
+        "iconHash": 0,
+        "hasIcon": false
+      },
+      "scope": 0,
+      "category": 3,
+      "bucketOrder": 30,
+      "itemCount": 10,
+      "location": 1,
+      "hasTransferDestination": true,
+      "enabled": true,
+      "fifo": false,
+      "hash": 2465295065,
+      "index": 1,
+      "redacted": false,
+      "blacklisted": false
+    },
+    "953998645": {
+      "displayProperties": {
+        "description": "Mitrailleuses et lance-roquettes.",
+        "name": "Armes puissantes",
+        "iconHash": 0,
+        "hasIcon": false
+      },
+      "scope": 0,
+      "category": 3,
+      "bucketOrder": 40,
+      "itemCount": 10,
+      "location": 1,
+      "hasTransferDestination": true,
+      "enabled": true,
+      "fifo": false,
+      "hash": 953998645,
+      "index": 2,
+      "redacted": false,
+      "blacklisted": false
+    },
+    "3448274439": {
+      "displayProperties": {
+        "description": "Casques et chaperons.",
+        "name": "Casque",
+        "iconHash": 0,
+        "hasIcon": false
+      },
+      "scope": 0,
+      "category": 3,
+      "bucketOrder": 50,
+      "itemCount": 10,
+      "location": 1,
+      "hasTransferDestination": true,
+      "enabled": true,
+      "fifo": false,
+      "hash": 3448274439,
+      "index": 3,
+      "redacted": false,
+      "blacklisted": false
+    },
+    "3551918588": {
+      "displayProperties": {
+        "description": "Gants et gantelets.",
+        "name": "Gantelets",
+        "iconHash": 0,
+        "hasIcon": false
+      },
+      "scope": 0,
+      "category": 3,
+      "bucketOrder": 60,
+      "itemCount": 10,
+      "location": 1,
+      "hasTransferDestination": true,
+      "enabled": true,
+      "fifo": false,
+      "hash": 3551918588,
+      "index": 4,
+      "redacted": false,
+      "blacklisted": false
+    },
+    "14239492": {
+      "displayProperties": {
+        "description": "Cuirasses, vestes et surplis.",
+        "name": "Armure de torse",
+        "iconHash": 0,
+        "hasIcon": false
+      },
+      "scope": 0,
+      "category": 3,
+      "bucketOrder": 70,
+      "itemCount": 10,
+      "location": 1,
+      "hasTransferDestination": true,
+      "enabled": true,
+      "fifo": false,
+      "hash": 14239492,
+      "index": 5,
+      "redacted": false,
+      "blacklisted": false
+    },
+    "20886954": {
+      "displayProperties": {
+        "description": "Grèves et jambières.",
+        "name": "Armure de jambes",
+        "iconHash": 0,
+        "hasIcon": false
+      },
+      "scope": 0,
+      "category": 3,
+      "bucketOrder": 80,
+      "itemCount": 10,
+      "location": 1,
+      "hasTransferDestination": true,
+      "enabled": true,
+      "fifo": false,
+      "hash": 20886954,
+      "index": 6,
+      "redacted": false,
+      "blacklisted": false
+    },
+    "1585787867": {
+      "displayProperties": {
+        "description": "Fanions, brassards et capes.",
+        "name": "Objet de classe",
+        "iconHash": 0,
+        "hasIcon": false
+      },
+      "scope": 0,
+      "category": 3,
+      "bucketOrder": 90,
+      "itemCount": 10,
+      "location": 1,
+      "hasTransferDestination": true,
+      "enabled": true,
+      "fifo": false,
+      "hash": 1585787867,
+      "index": 7,
+      "redacted": false,
+      "blacklisted": false
+    }
+  }
+}

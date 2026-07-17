@@ -1,0 +1,200 @@
+{
+  "en": {
+    "965757574": {
+      "displayProperties": {
+        "description": "",
+        "name": "",
+        "iconHash": 0,
+        "hasIcon": false
+      },
+      "seasonNumber": 1,
+      "seasonPassList": [
+        {
+          "seasonPassHash": 0,
+          "ownershipUnlockFlagHash": 0,
+          "seasonPassStartTime": "0"
+        }
+      ],
+      "seasonPassProgressionHash": 0,
+      "startTimeInSeconds": "0",
+      "seasonalChallengesPresentationNodeHash": 2166136261,
+      "seasonPassUnlockHash": 0,
+      "hash": 965757574,
+      "index": 0,
+      "redacted": false,
+      "blacklisted": false
+    },
+    "2973407602": {
+      "displayProperties": {
+        "description": "A new season has begun! Venture into the Infinite Forest, uncover the mysteries of Osiris, and seek new challenges on Mercury.",
+        "name": "Curse of Osiris",
+        "iconHash": 0,
+        "hasIcon": false
+      },
+      "seasonNumber": 2,
+      "seasonPassList": [
+        {
+          "seasonPassHash": 0,
+          "ownershipUnlockFlagHash": 0,
+          "seasonPassStartTime": "0"
+        }
+      ],
+      "seasonPassProgressionHash": 0,
+      "startTimeInSeconds": "0",
+      "seasonalChallengesPresentationNodeHash": 2166136261,
+      "seasonPassUnlockHash": 0,
+      "hash": 2973407602,
+      "index": 1,
+      "redacted": false,
+      "blacklisted": false
+    },
+    "2809059428": {
+      "displayProperties": {
+        "description": "Savathûn has been brought out of hiding, revealing a harrowing discovery that shakes the Vanguard. As Xivu Arath prepares to capture her sister, Savathûn offers you a bargain: free her from her worm, and she will reveal the truth about the Darkness.",
+        "name": "Season of the Lost",
+        "icon": "/common/destiny2_content/icons/DestinySeasonDefinition_265abf1e776ea726de1f1459392727b6.png",
+        "iconHash": 0,
+        "hasIcon": true
+      },
+      "seasonNumber": 15,
+      "startDate": "2021-08-24T17:00:00Z",
+      "endDate": "2022-02-22T17:00:00Z",
+      "seasonPassList": [
+        {
+          "seasonPassHash": 3261333423,
+          "ownershipUnlockFlagHash": 0,
+          "seasonPassStartTime": "0",
+          "seasonPassStartDate": "2021-08-24T17:00:00Z",
+          "seasonPassEndDate": "2022-02-22T17:00:00Z"
+        }
+      ],
+      "seasonPassProgressionHash": 0,
+      "artifactItemHash": 3799750641,
+      "sealPresentationNodeHash": 1321008456,
+      "startTimeInSeconds": "0",
+      "seasonalChallengesPresentationNodeHash": 2166136261,
+      "seasonPassUnlockHash": 0,
+      "preview": {
+        "description": "Get the Season Pass and instantly unlock the new Exotic Linear Fusion Rifle. Also get XP boosts that speed up Seasonal ranks and reward track unlocks.",
+        "linkPath": "/7/en/Destiny/Buy/silverbundle",
+        "images": [
+          {
+            "thumbnailImage": "/img/destiny_content/seasons/preview/season15/item0-thumbnail.jpg",
+            "highResImage": "/img/destiny_content/seasons/preview/season15/item0-highres.jpg"
+          },
+          {
+            "thumbnailImage": "/img/destiny_content/seasons/preview/season15/item1-thumbnail.jpg",
+            "highResImage": "/img/destiny_content/seasons/preview/season15/item1-highres.jpg"
+          },
+          {
+            "thumbnailImage": "/img/destiny_content/seasons/preview/season15/item2-thumbnail.jpg",
+            "highResImage": "/img/destiny_content/seasons/preview/season15/item2-highres.jpg"
+          }
+        ]
+      },
+      "hash": 2809059428,
+      "index": 14,
+      "redacted": false,
+      "blacklisted": false
+    }
+  },
+  "fr": {
+    "965757574": {
+      "displayProperties": {
+        "description": "",
+        "name": "",
+        "iconHash": 0,
+        "hasIcon": false
+      },
+      "seasonNumber": 1,
+      "seasonPassList": [
+        {
+          "seasonPassHash": 0,
+          "ownershipUnlockFlagHash": 0,
+          "seasonPassStartTime": "0"
+        }
+      ],
+      "seasonPassProgressionHash": 0,
+      "startTimeInSeconds": "0",
+      "seasonalChallengesPresentationNodeHash": 2166136261,
+      "seasonPassUnlockHash": 0,
+      "hash": 965757574,
+      "index": 0,
+      "redacted": false,
+      "blacklisted": false
+    },
+    "2973407602": {
+      "displayProperties": {
+        "description": "Une nouvelle saison vient de commencer ! Aventurez-vous dans la Forêt infinie, découvrez les mystères d'Osiris et relevez de nouveaux défis sur Mercure.",
+        "name": "La Malédiction d'Osiris",
+        "iconHash": 0,
+        "hasIcon": false
+      },
+      "seasonNumber": 2,
+      "seasonPassList": [
+        {
+          "seasonPassHash": 0,
+          "ownershipUnlockFlagHash": 0,
+          "seasonPassStartTime": "0"
+        }
+      ],
+      "seasonPassProgressionHash": 0,
+      "startTimeInSeconds": "0",
+      "seasonalChallengesPresentationNodeHash": 2166136261,
+      "seasonPassUnlockHash": 0,
+      "hash": 2973407602,
+      "index": 1,
+      "redacted": false,
+      "blacklisted": false
+    },
+    "2809059428": {
+      "displayProperties": {
+        "description": "Savathûn est sortie de sa cachette, et expose une terrible révélation qui bouleverse l'Avant-garde. Alors que Xivu Arath se prépare à capturer sa sœur, Savathûn vous propose un marché : libérez-la de son ver, et elle vous dévoilera la vérité à propos des Ténèbres.",
+        "name": "Saison des Disparus",
+        "icon": "/common/destiny2_content/icons/DestinySeasonDefinition_265abf1e776ea726de1f1459392727b6.png",
+        "iconHash": 0,
+        "hasIcon": true
+      },
+      "seasonNumber": 15,
+      "startDate": "2021-08-24T17:00:00Z",
+      "endDate": "2022-02-22T17:00:00Z",
+      "seasonPassList": [
+        {
+          "seasonPassHash": 3261333423,
+          "ownershipUnlockFlagHash": 0,
+          "seasonPassStartTime": "0",
+          "seasonPassStartDate": "2021-08-24T17:00:00Z",
+          "seasonPassEndDate": "2022-02-22T17:00:00Z"
+        }
+      ],
+      "seasonPassProgressionHash": 0,
+      "artifactItemHash": 3799750641,
+      "sealPresentationNodeHash": 1321008456,
+      "startTimeInSeconds": "0",
+      "seasonalChallengesPresentationNodeHash": 2166136261,
+      "seasonPassUnlockHash": 0,
+      "preview": {
+        "description": "Obtenez le Pass saisonnier et débloquez instantanément le nouveau fusil à fusion linéaire exotique. Vous recevrez aussi un bonus d'EXP qui accélérera votre progression dans les rangs de saison ainsi que le déverrouillage des récompenses.",
+        "linkPath": "/7/en/Destiny/Buy/silverbundle",
+        "images": [
+          {
+            "thumbnailImage": "/img/destiny_content/seasons/preview/season15/item0-thumbnail.jpg",
+            "highResImage": "/img/destiny_content/seasons/preview/season15/item0-highres.jpg"
+          },
+          {
+            "thumbnailImage": "/img/destiny_content/seasons/preview/season15/item1-thumbnail.jpg",
+            "highResImage": "/img/destiny_content/seasons/preview/season15/item1-highres.jpg"
+          },
+          {
+            "thumbnailImage": "/img/destiny_content/seasons/preview/season15/item2-thumbnail.jpg",
+            "highResImage": "/img/destiny_content/seasons/preview/season15/item2-highres.jpg"
+          }
+        ]
+      },
+      "hash": 2809059428,
+      "index": 14,
+      "redacted": false,
+      "blacklisted": false
+    }
+  }
+}
