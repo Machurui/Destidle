@@ -71,6 +71,22 @@ public class D1MapperTests : IDisposable
         var items = D1Mapper.Map(en, fr, eras, _ => { });
         var missing = D1Mapper.ReportMissingEras(items, eras);
         Assert.Contains("Thorn", missing);
+        var thorn = Assert.Single(items).Item;
+        Assert.Equal(-1, thorn.SeasonIdx);
+        Assert.Equal("", thorn.SeasonEn);
+        Assert.Equal("", thorn.SeasonFr);
+    }
+
+    [Fact]
+    public void FrenchEraLabel_DivergesFromEnglish()
+    {
+        var en = MakeDb("en", (7, WeaponJson(7, "No Land Beyond", 1498876634, 0)));
+        var fr = MakeDb("fr", (7, WeaponJson(7, "No Land Beyond", 1498876634, 0)));
+        var items = D1Mapper.Map(en, fr, new Dictionary<string, int> { ["No Land Beyond"] = 1 }, _ => { });
+        var g = Assert.Single(items).Item;
+        Assert.Equal(1, g.SeasonIdx);
+        Assert.Equal("The Dark Below", g.SeasonEn);
+        Assert.Equal("Les Ténèbres souterraines", g.SeasonFr);
     }
 
     public void Dispose()

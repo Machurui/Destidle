@@ -49,7 +49,6 @@ public static class D1Mapper
             var rootFr = docFr.RootElement;
 
             var era = eraByNameEn.TryGetValue(name!, out var e) ? e : -1; // -1 = inconnu, signalé par ReportMissingEras
-            var eraIdx = Math.Max(era, 0);
 
             var item = new Item
             {
@@ -61,7 +60,7 @@ public static class D1Mapper
                 TypeEn = Get(root, "itemTypeName")?.GetString() ?? "",
                 TypeFr = Get(rootFr, "itemTypeName")?.GetString() ?? "",
                 SeasonIdx = era, // -1 si inconnue : l'orchestrateur refuse d'écrire si ReportMissingEras non vide
-                SeasonEn = D1EraLabels.En[eraIdx], SeasonFr = D1EraLabels.Fr[eraIdx],
+                SeasonEn = era >= 0 ? D1EraLabels.En[era] : "", SeasonFr = era >= 0 ? D1EraLabels.Fr[era] : "",
                 SplashFile = "", IconFile = ""
             };
 
