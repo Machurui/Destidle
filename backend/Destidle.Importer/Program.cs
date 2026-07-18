@@ -1,2 +1,94 @@
-﻿// See https://aka.ms/new-console-template for more information
-Console.WriteLine("Hello, World!");
+using System.IO.Compression;
+using System.Text.Json;
+using Destidle.Core;
+using Destidle.Importer;
+using Microsoft.Extensions.Configuration;
+
+var config = new ConfigurationBuilder()
+    .AddJsonFile("appsettings.json", optional: true)
+    .AddUserSecrets("destidle-importer")
+    .AddEnvironmentVariables()
+    .Build();
+
+var apiKey = config["Bungie:ApiKey"] ?? Environment.GetEnvironmentVariable("BUNGIE_API_KEY");
+if (string.IsNullOrWhiteSpace(apiKey))
+{
+    Console.Error.WriteLine("Clé API Bungie manquante. Créez-en une sur https://www.bungie.net/developer puis :");
+    Console.Error.WriteLine("  dotnet user-secrets set \"Bungie:ApiKey\" \"<clé>\" --id destidle-importer");
+    return 1;
+}
+var hmacSecret = config["Game:HmacSecret"] ?? "dev-secret-change-me";
+var outputDir = Path.GetFullPath(config["Importer:OutputDir"] ?? Path.Combine("..", "Destidle.Api", "AppData"));
+var reportOnly = args.Contains("--report-d1");
+
+using var http = new HttpClient { BaseAddress = new Uri("https://www.bungie.net") };
+http.DefaultRequestHeaders.Add("X-API-Key", apiKey);
+var bungie = new BungieClient(http);
+var work = Directory.CreateTempSubdirectory("destidle-import").FullName;
+var warn = (string m) => Console.WriteLine($"  ⚠ {m}");
+
+Console.WriteLine("— Manifest D2 —");
+var d2Paths = await bungie.GetD2ManifestPathsAsync(default);
+async Task<JsonDocument> Dl(string path, string name)
+{
+    var f = Path.Combine(work, name);
+    await bungie.DownloadToFileAsync(path, f, default);
+    return JsonDocument.Parse(File.ReadAllText(f));
+}
+var dimJson = await http.GetStringAsync(
+    "https://raw.githubusercontent.com/DestinyItemManager/d2-additional-info/master/output/seasons.json");
+var dim = JsonSerializer.Deserialize<Dictionary<string, int>>(dimJson)!
+    .ToDictionary(kv => long.Parse(kv.Key), kv => kv.Value);
+var d2 = D2Mapper.Map(new D2Sources(
+    await Dl(d2Paths.ItemDefsByLocale["en"], "items-en.json"), await Dl(d2Paths.ItemDefsByLocale["fr"], "items-fr.json"),
+    await Dl(d2Paths.SeasonDefsByLocale["en"], "seasons-en.json"), await Dl(d2Paths.SeasonDefsByLocale["fr"], "seasons-fr.json"),
+    await Dl(d2Paths.DamageTypeDefsByLocale["en"], "dmg-en.json"), await Dl(d2Paths.DamageTypeDefsByLocale["fr"], "dmg-fr.json"),
+    await Dl(d2Paths.BucketDefsByLocale["en"], "buckets-en.json"), await Dl(d2Paths.BucketDefsByLocale["fr"], "buckets-fr.json"),
+    await Dl(d2Paths.ClassDefsByLocale["en"], "classes-en.json"), await Dl(d2Paths.ClassDefsByLocale["fr"], "classes-fr.json"),
+    dim), warn);
+Console.WriteLine($"  {d2.Count} exotiques D2");
+
+Console.WriteLine("— Manifest D1 —");
+var d1Paths = await bungie.GetD1WorldContentPathsAsync(default);
+async Task<string> DlD1(string locale)
+{
+    var zip = Path.Combine(work, $"d1-{locale}.zip");
+    await bungie.DownloadToFileAsync(d1Paths[locale], zip, default);
+    var extractDir = Path.Combine(work, $"d1-{locale}");
+    ZipFile.ExtractToDirectory(zip, extractDir);
+    return Directory.GetFiles(extractDir).Single(); // un seul fichier .content (sqlite)
+}
+var erasPath = Path.Combine(AppContext.BaseDirectory, "Data", "d1-eras.json");
+var eras = JsonSerializer.Deserialize<Dictionary<string, int>>(File.ReadAllText(erasPath))!;
+var d1 = D1Mapper.Map(await DlD1("en"), await DlD1("fr"), eras, warn);
+var missing = D1Mapper.ReportMissingEras(d1, eras);
+Console.WriteLine($"  {d1.Count} exotiques D1, {missing.Count} sans ère");
+if (missing.Count > 0)
+{
+    Console.WriteLine("Exotiques D1 sans ère dans Data/d1-eras.json :");
+    foreach (var n in missing) Console.WriteLine($"  - {n}");
+    Console.Error.WriteLine("Complétez d1-eras.json puis relancez.");
+    return 2;
+}
+if (reportOnly) { Console.WriteLine("Rapport OK — aucune ère manquante."); return 0; }
+
+Console.WriteLine("— Images —");
+var fetcher = new ImageFetcher(http, outputDir, hmacSecret);
+var all = new List<Item>();
+foreach (var m in d2)
+{
+    var (icon, splash) = await fetcher.FetchAsync(Game.D2, m.Item.BungieHash, m.IconServerPath, m.ScreenshotServerPath, default);
+    m.Item.IconFile = icon; m.Item.SplashFile = splash;
+    all.Add(m.Item);
+}
+foreach (var m in d1)
+{
+    var (icon, splash) = await fetcher.FetchAsync(Game.D1, m.Item.BungieHash, m.IconServerPath, null, default);
+    m.Item.IconFile = icon; m.Item.SplashFile = splash;
+    all.Add(m.Item);
+}
+
+Console.WriteLine("— Base —");
+DbWriter.Write(all, Path.Combine(outputDir, "destidle.db"));
+Console.WriteLine($"OK : {all.Count} items → {Path.Combine(outputDir, "destidle.db")}");
+return 0;
