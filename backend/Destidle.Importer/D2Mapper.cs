@@ -173,7 +173,11 @@ public static class D2Mapper
     {
         var d = new Dictionary<long, string>();
         foreach (var p in doc.RootElement.EnumerateObject())
-            d[long.Parse(p.Name)] = p.Value.GetProperty("displayProperties").GetProperty("name").GetString() ?? "";
+        {
+            if (!p.Value.TryGetProperty("displayProperties", out var dp)) continue;
+            if (!dp.TryGetProperty("name", out var n)) continue;
+            d[long.Parse(p.Name)] = n.GetString() ?? "";
+        }
         return d;
     }
 

@@ -115,7 +115,14 @@ public static class D1Mapper
         while (reader.Read())
         {
             var hash = unchecked((uint)reader.GetInt32(0)); // id signé → hash non signé
-            var json = reader.IsDBNull(1) ? "" : Encoding.UTF8.GetString((byte[])reader.GetValue(1));
+            var raw = reader.IsDBNull(1) ? null : reader.GetValue(1);
+            var json = raw switch
+            {
+                null => "",
+                byte[] b => Encoding.UTF8.GetString(b),
+                string s => s,
+                _ => raw.ToString() ?? ""
+            };
             if (json.Length > 0) rows[hash] = json;
         }
         return rows;
