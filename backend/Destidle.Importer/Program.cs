@@ -18,7 +18,9 @@ if (string.IsNullOrWhiteSpace(apiKey))
     return 1;
 }
 var hmacSecret = config["Game:HmacSecret"] ?? "dev-secret-change-me";
-var outputDir = Path.GetFullPath(config["Importer:OutputDir"] ?? Path.Combine("..", "Destidle.Api", "AppData"));
+var outputDir = config["Importer:OutputDir"] is { } cfgDir
+    ? Path.GetFullPath(cfgDir)
+    : FindOutputDir();
 var reportOnly = args.Contains("--report-d1");
 
 using var http = new HttpClient { BaseAddress = new Uri("https://www.bungie.net") };
@@ -35,17 +37,22 @@ async Task<JsonDocument> Dl(string path, string name)
     await bungie.DownloadToFileAsync(path, f, default);
     return JsonDocument.Parse(File.ReadAllText(f));
 }
-var dimJson = await http.GetStringAsync(
+var legacySeasonsJson = await http.GetStringAsync(
     "https://raw.githubusercontent.com/DestinyItemManager/d2-additional-info/master/output/seasons.json");
-var dim = JsonSerializer.Deserialize<Dictionary<string, int>>(dimJson)!
+var legacySeasons = JsonSerializer.Deserialize<Dictionary<string, int>>(legacySeasonsJson)!
     .ToDictionary(kv => long.Parse(kv.Key), kv => kv.Value);
+var watermarkJson = await http.GetStringAsync(
+    "https://raw.githubusercontent.com/DestinyItemManager/d2-additional-info/master/output/watermark-to-season.json");
+var watermarkToSeason = JsonSerializer.Deserialize<Dictionary<string, int>>(watermarkJson)!;
+var itemsEnDoc = await Dl(d2Paths.ItemDefsByLocale["en"], "items-en.json");
+var seasonsByHash = D2SeasonSource.Build(itemsEnDoc, watermarkToSeason, legacySeasons);
 var d2 = D2Mapper.Map(new D2Sources(
-    await Dl(d2Paths.ItemDefsByLocale["en"], "items-en.json"), await Dl(d2Paths.ItemDefsByLocale["fr"], "items-fr.json"),
+    itemsEnDoc, await Dl(d2Paths.ItemDefsByLocale["fr"], "items-fr.json"),
     await Dl(d2Paths.SeasonDefsByLocale["en"], "seasons-en.json"), await Dl(d2Paths.SeasonDefsByLocale["fr"], "seasons-fr.json"),
     await Dl(d2Paths.DamageTypeDefsByLocale["en"], "dmg-en.json"), await Dl(d2Paths.DamageTypeDefsByLocale["fr"], "dmg-fr.json"),
     await Dl(d2Paths.BucketDefsByLocale["en"], "buckets-en.json"), await Dl(d2Paths.BucketDefsByLocale["fr"], "buckets-fr.json"),
     await Dl(d2Paths.ClassDefsByLocale["en"], "classes-en.json"), await Dl(d2Paths.ClassDefsByLocale["fr"], "classes-fr.json"),
-    dim), warn);
+    seasonsByHash), warn);
 Console.WriteLine($"  {d2.Count} exotiques D2");
 
 Console.WriteLine("— Manifest D1 —");
@@ -92,3 +99,17 @@ Console.WriteLine("— Base —");
 DbWriter.Write(all, Path.Combine(outputDir, "destidle.db"));
 Console.WriteLine($"OK : {all.Count} items → {Path.Combine(outputDir, "destidle.db")}");
 return 0;
+
+static string FindOutputDir()
+{
+    var dir = new DirectoryInfo(AppContext.BaseDirectory);
+    while (dir is not null)
+    {
+        if (File.Exists(Path.Combine(dir.FullName, "Destidle.sln")))
+            return Path.Combine(dir.FullName, "Destidle.Api", "AppData");
+        dir = dir.Parent;
+    }
+    throw new InvalidOperationException(
+        "Impossible de trouver Destidle.sln en remontant depuis AppContext.BaseDirectory. " +
+        "Définissez Importer:OutputDir dans la config pour forcer le chemin.");
+}
