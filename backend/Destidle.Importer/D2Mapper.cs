@@ -185,8 +185,12 @@ public static class D2Mapper
     {
         var d = new Dictionary<int, string>();
         foreach (var p in doc.RootElement.EnumerateObject())
-            if (p.Value.TryGetProperty(field, out var v))
-                d[v.GetInt32()] = p.Value.GetProperty("displayProperties").GetProperty("name").GetString() ?? "";
+        {
+            if (!p.Value.TryGetProperty(field, out var v)) continue;
+            if (!p.Value.TryGetProperty("displayProperties", out var dp)) continue;
+            if (!dp.TryGetProperty("name", out var n)) continue;
+            d[v.GetInt32()] = n.GetString() ?? "";
+        }
         return d;
     }
 }
