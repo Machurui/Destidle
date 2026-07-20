@@ -18,8 +18,12 @@ public class ItemsApiTests : IClassFixture<ApiTestFactory>
         var body = await resp.Content.ReadAsStringAsync();
         Assert.Contains("\"nameEn\":\"Gjallarhorn\"", body);
         Assert.Contains("\"game\":\"D1\"", body);
-        Assert.DoesNotContain("seasonIdx", body); // rien qui aide à trier par saison
-        Assert.DoesNotContain("element", body);
+        Assert.DoesNotContain("\"seasonIdx\"", body); // rien qui aide à trier par saison
+        Assert.DoesNotContain("\"seasonEn\"", body);
+        Assert.DoesNotContain("\"element\"", body);
+        Assert.DoesNotContain("\"slot\"", body);
+        Assert.DoesNotContain("\"class\"", body);
+        Assert.DoesNotContain("\"lightGgUrl\"", body);
         var list = System.Text.Json.JsonDocument.Parse(body).RootElement;
         Assert.Equal(4, list.GetArrayLength());
     }
@@ -29,6 +33,7 @@ public class ItemsApiTests : IClassFixture<ApiTestFactory>
     {
         var resp = await _client.GetAsync("/api/items?category=ships");
         Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
+        Assert.Equal("application/problem+json", resp.Content.Headers.ContentType?.MediaType);
     }
 
     [Fact]
