@@ -1,0 +1,20 @@
+{
+  "brand": { "sub": "// EXOTIC RECON" },
+  "modes": { "daily": "DAILY", "free": "FREE" },
+  "categories": { "weapon": "WEAPONS", "armor": "ARMOR" },
+  "intel": {
+    "tag": "BRIEFING",
+    "briefingWeapon": "The signal sharpens with each wrong guess. Identify the exotic weapon.",
+    "briefingArmor": "The signal sharpens with each wrong guess. Identify the exotic armor.",
+    "guesses": "GUESSES", "pool": "POOL", "mode": "MODE", "day": "PUZZLE", "streak": "STREAK"
+  },
+  "search": { "placeholderWeapon": "Type the name of an exotic weapon…", "placeholderArmor": "Type the name of an exotic armor piece…", "enter": "ENTER" },
+  "board": { "weapon": "Weapon", "armor": "Armor", "rarity": "Rarity", "season": "Season", "slot": "Slot", "type": "Type", "element": "Element", "class": "Class", "game": "Game" },
+  "win": { "title": "// TARGET ACQUIRED", "solved": "Solved in {n} guess | Solved in {n} guesses", "copy": "COPY RESULT", "copied": "COPIED!", "new": "NEW GAME" },
+  "lose": { "title": "// TARGET ESCAPED", "retry": "TRY AGAIN" },
+  "legend": { "title": "// LEGEND", "hit": "Exact match", "near": "Close (season ±2)", "miss": "Different", "later": "Target season is later", "earlier": "Target season is earlier" },
+  "footer": { "data": "Data: Destiny 1 & 2 exotics — Bungie API", "built": "Built for Guardians" },
+  "share": { "daily": "DESTIDLE #{n} — {cat}", "free": "DESTIDLE — Free play ({cat})", "solved": "{name} in {count} guess | {name} in {count} guesses", "failed": "{name} not identified" },
+  "errors": { "network": "API unreachable — is the server running?", "retry": "RETRY" },
+  "loading": "Loading…"
+}
