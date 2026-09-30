@@ -17,6 +17,8 @@ builder.Services.AddSingleton<GameClock>();
 builder.Services.AddSingleton<PuzzleTokenService>();
 builder.Services.AddMemoryCache();
 builder.Services.AddProblemDetails();
+// REQ-011 : en Development, ThrowOnBadRequest vaut true et un corps JSON invalide donnerait 500 ; on veut 400 partout.
+builder.Services.Configure<RouteHandlerOptions>(o => o.ThrowOnBadRequest = false);
 
 var app = builder.Build();
 app.UseExceptionHandler();
