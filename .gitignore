@@ -7,3 +7,8 @@ backend/artifacts/
 node_modules/
 frontend/dist/
 .DS_Store
+
+# dev-orchestrator : suivi de coordination local, non versionné
+.dev-orchestrator/
+# ralph-loop : état de boucle local
+.claude/ralph-loop.local.md
