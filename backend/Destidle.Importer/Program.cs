@@ -17,7 +17,18 @@ if (string.IsNullOrWhiteSpace(apiKey))
     Console.Error.WriteLine("  dotnet user-secrets set \"Bungie:ApiKey\" \"<clé>\" --id destidle-importer");
     return 1;
 }
-var hmacSecret = config["Game:HmacSecret"] ?? "dev-secret-change-me";
+// SEC-01 / RISK-001 : secret absent ou par défaut → avertir sans refuser (refuser forcerait un réimport
+// qui changerait tous les noms d'images). Les noms de fichiers restent calculables tant qu'il n'est pas défini.
+const string DefaultHmacSecret = "dev-secret-change-me";
+var hmacSecret = config["Game:HmacSecret"];
+if (string.IsNullOrWhiteSpace(hmacSecret) || hmacSecret.Trim() == DefaultHmacSecret) // même normalisation que StartupGuard (API)
+{
+    Console.Error.WriteLine("  ⚠ Game:HmacSecret absent ou valeur par défaut : les noms de fichiers d'images sont calculables (SEC-01).");
+    Console.Error.WriteLine("    Définissez un secret : dotnet user-secrets set \"Game:HmacSecret\" \"<secret>\" --id destidle-importer");
+    Console.Error.WriteLine("    (ou variable d'environnement Game__HmacSecret).");
+    Console.Error.WriteLine("    Changer ce secret impose un réimport complet (les noms d'images en dépendent).");
+    hmacSecret = DefaultHmacSecret;
+}
 var outputDir = config["Importer:OutputDir"] is { } cfgDir
     ? Path.GetFullPath(cfgDir)
     : FindOutputDir();
@@ -80,7 +91,7 @@ if (missing.Count > 0)
 if (reportOnly) { Console.WriteLine("Rapport OK — aucune ère manquante."); return 0; }
 
 Console.WriteLine("— Images —");
-var fetcher = new ImageFetcher(http, outputDir, hmacSecret);
+var fetcher = new ImageFetcher(http, outputDir, hmacSecret, warn); // SEC-14 : images non JPEG/PNG signalées, non écrites
 var all = new List<Item>();
 foreach (var m in d2)
 {
