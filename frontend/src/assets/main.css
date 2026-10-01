@@ -120,6 +120,13 @@ body::before {
 .btn:hover { border-color: var(--color-accent); color: var(--color-accent); }
 .btn.primary { background: var(--color-accent); color: #0b0e14; border-color: var(--color-accent); }
 .btn.primary:hover { filter: brightness(1.1); }
+/* Disabled state (TASK-015): the prototype has none and the Tailwind v4 preflight forces
+   `opacity: 1` on buttons, so switches / actions disabled during a submission need it. */
+.mode-switch button:disabled, .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.mode-switch button:disabled:hover { color: var(--color-ink-mute); }
+.mode-switch button.on:disabled:hover { color: #0b0e14; }
+.btn:disabled:hover { border-color: var(--color-line); color: var(--color-ink); }
+.btn.primary:disabled:hover { border-color: var(--color-accent); color: #0b0e14; filter: none; }
 
 /* ===== Legend / Footer / divers ===== */
 .legend { margin-top: 22px; padding: 18px 20px; background: var(--color-panel); border: 1px solid var(--color-line); border-radius: 4px; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px 22px; align-items: center; }

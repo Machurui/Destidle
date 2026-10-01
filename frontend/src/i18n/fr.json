@@ -15,6 +15,6 @@
   "legend": { "title": "// LÉGENDE", "hit": "Correspondance exacte", "near": "Proche (saison ±2)", "miss": "Différent", "later": "La cible est plus récente", "earlier": "La cible est plus ancienne" },
   "footer": { "data": "Données : exotiques Destiny 1 & 2 — API Bungie", "built": "Fait pour les Gardiens" },
   "share": { "daily": "DESTIDLE #{n} — {cat}", "free": "DESTIDLE — Partie libre ({cat})", "solved": "{name} en {count} essai | {name} en {count} essais", "failed": "{name} non identifiée" },
-  "errors": { "network": "API injoignable — le serveur tourne ?", "retry": "RÉESSAYER" },
+  "errors": { "network": "API injoignable — le serveur tourne ?", "retry": "RÉESSAYER", "http": "Erreur serveur ({status}) — réessayez." },
   "loading": "Chargement…"
 }

@@ -15,6 +15,6 @@
   "legend": { "title": "// LEGEND", "hit": "Exact match", "near": "Close (season ±2)", "miss": "Different", "later": "Target season is later", "earlier": "Target season is earlier" },
   "footer": { "data": "Data: Destiny 1 & 2 exotics — Bungie API", "built": "Built for Guardians" },
   "share": { "daily": "DESTIDLE #{n} — {cat}", "free": "DESTIDLE — Free play ({cat})", "solved": "{name} in {count} guess | {name} in {count} guesses", "failed": "{name} not identified" },
-  "errors": { "network": "API unreachable — is the server running?", "retry": "RETRY" },
+  "errors": { "network": "API unreachable — is the server running?", "retry": "RETRY", "http": "Server error ({status}) — try again." },
   "loading": "Loading…"
 }
