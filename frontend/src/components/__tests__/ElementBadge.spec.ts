@@ -23,12 +23,18 @@ describe('ElementBadge', () => {
     expect((badge.element as HTMLElement).style.color).toBe('rgb(255, 179, 71)')
   })
 
-  it('falls back to a neutral glyph and colour for an unknown element', () => {
-    const wrapper = mountBadge({ element: 'Foo', label: 'Foo' })
-    const badge = wrapper.find('.el-badge')
-    expect(badge.find('.el-glyph').text()).toBe('·')
-    expect((badge.element as HTMLElement).style.color).toBe('rgb(187, 187, 187)')
-  })
+  // SEC-F11: inherited object keys must behave exactly like unknown elements.
+  it.each(['Foo', 'constructor', '__proto__', 'toString'])(
+    'falls back to a neutral glyph and colour for the unknown or inherited key %s',
+    (element) => {
+      const wrapper = mountBadge({ element, label: element })
+      const badge = wrapper.find('.el-badge')
+      expect(badge.exists()).toBe(true)
+      expect(badge.find('.el-glyph').text()).toBe('·')
+      expect(badge.find('.el-name').text()).toBe(element)
+      expect((badge.element as HTMLElement).style.color).toBe('rgb(187, 187, 187)')
+    },
+  )
 
   it('renders an em dash and no badge when the element is null', () => {
     const wrapper = mountBadge({ element: null, label: null })
