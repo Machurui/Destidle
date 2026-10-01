@@ -1,5 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { GuessResult, ItemDisplay } from '@/lib/api'
+import { createApp, h, nextTick } from 'vue'
+import { createI18n } from 'vue-i18n'
+import GuessBoard from '@/components/GuessBoard.vue'
+import LosePanel from '@/components/LosePanel.vue'
+import WinPanel from '@/components/WinPanel.vue'
+import en from '@/i18n/en.json'
+import fr from '@/i18n/fr.json'
+import type { Category, Feedback, GuessResult, ItemDisplay, MatchKind } from '@/lib/api'
 import type { StoredBoard } from '../useLocalState'
 import {
   STORAGE_KEY,
@@ -44,6 +51,29 @@ const guess = (id: number, correct = false): GuessResult => ({
     class: null,
     game: 'hit',
   },
+})
+
+const armorDisplay = (id: number): ItemDisplay => ({
+  ...display(id),
+  slotEn: null,
+  slotFr: null,
+  typeEn: 'Helmet',
+  typeFr: 'Casque',
+  element: null,
+  elementEn: null,
+  elementFr: null,
+  classEn: 'Titan',
+  classFr: 'Titan',
+})
+
+const armorFeedback = (kind: MatchKind, dir: -1 | 0 | 1): Feedback => ({
+  rarity: kind,
+  season: { kind, dir },
+  slot: kind,
+  type: null,
+  element: null,
+  class: kind,
+  game: kind,
 })
 
 const board = (overrides: Partial<StoredBoard> = {}): StoredBoard => ({
@@ -281,6 +311,9 @@ describe('corrupted storage (REQ-015: silent reset)', () => {
     expectSilent()
   })
 
+  /** A feedback valid under CT-04, so that each case below carries one defect only. */
+  const okFeedback = (): Feedback => guess(1).feedback
+
   // SEC-F7 / reviewer C2: a corrupted element inside `guesses[]` used to be
   // accepted and made `usedIds` throw instead of the silent reset.
   const invalidGuesses: ReadonlyArray<[string, unknown]> = [
@@ -289,14 +322,15 @@ describe('corrupted storage (REQ-015: silent reset)', () => {
     ['a number', 7],
     ['an array', []],
     ['an empty object', {}],
-    ['correct not a boolean', { correct: 'yes', guess: display(1), feedback: {} }],
-    ['guess missing', { correct: true, feedback: {} }],
-    ['guess null', { correct: true, guess: null, feedback: {} }],
-    ['guess an array', { correct: true, guess: [1], feedback: {} }],
-    ['guess.id not a number', { correct: true, guess: { ...display(1), id: '1' }, feedback: {} }],
-    ['guess.id missing', { correct: true, guess: { nameEn: 'x' }, feedback: {} }],
+    ['correct not a boolean', { correct: 'yes', guess: display(1), feedback: okFeedback() }],
+    ['guess missing', { correct: true, feedback: okFeedback() }],
+    ['guess null', { correct: true, guess: null, feedback: okFeedback() }],
+    ['guess an array', { correct: true, guess: [1], feedback: okFeedback() }],
+    ['guess.id not a number', { correct: true, guess: { ...display(1), id: '1' }, feedback: okFeedback() }],
+    ['guess.id missing', { correct: true, guess: { nameEn: 'x' }, feedback: okFeedback() }],
     ['feedback missing', { correct: true, guess: display(1) }],
     ['feedback not an object', { correct: true, guess: display(1), feedback: 'hit' }],
+    ['feedback an empty object', { correct: true, guess: display(1), feedback: {} }],
   ]
 
   it.each(invalidGuesses)('drops a board whose guesses contain %s and keeps the valid neighbour', (_label, bad) => {
@@ -325,14 +359,438 @@ describe('corrupted storage (REQ-015: silent reset)', () => {
     expectSilent()
   })
 
-  it('only checks the shape of a guess shallowly (correct, guess.id, feedback object)', () => {
-    const minimal = { correct: false, guess: { id: 3 }, feedback: {} }
+  it('does not require the display strings of a guess (an absent string renders empty)', () => {
+    const minimal = { correct: false, guess: { id: 3 }, feedback: okFeedback() }
     localStorage.setItem(
       STORAGE_KEY,
       JSON.stringify({ boards: { 'free|weapon': { token: 't', guesses: [minimal], status: 'playing' } }, streaks: {} }),
     )
     expect(loadBoard('free|weapon')?.guesses).toEqual([minimal])
     expectSilent()
+  })
+
+  // SEC-F12 / C87: `GuessRow` dereferences `feedback.season` (`kind`, `dir`)
+  // and turns the other kinds into class tokens, so the whole CT-04 shape of
+  // `feedback` is checked when a board is restored.
+  const feedbackWithout = (field: keyof Feedback): Record<string, unknown> => {
+    const f: Record<string, unknown> = { ...okFeedback() }
+    delete f[field]
+    return f
+  }
+  const invalidFeedbacks: ReadonlyArray<[string, unknown]> = [
+    ['season missing', feedbackWithout('season')],
+    ['season null', { ...okFeedback(), season: null }],
+    ['season a string', { ...okFeedback(), season: 'hit' }],
+    ['season an array', { ...okFeedback(), season: ['miss', 1] }],
+    ['season.kind unknown', { ...okFeedback(), season: { kind: 'exact', dir: 1 } }],
+    ['season.kind missing', { ...okFeedback(), season: { dir: 1 } }],
+    ['season.kind null', { ...okFeedback(), season: { kind: null, dir: 0 } }],
+    ['season.dir 2', { ...okFeedback(), season: { kind: 'miss', dir: 2 } }],
+    ['season.dir -2', { ...okFeedback(), season: { kind: 'miss', dir: -2 } }],
+    ['season.dir 0.5', { ...okFeedback(), season: { kind: 'near', dir: 0.5 } }],
+    ['season.dir a string', { ...okFeedback(), season: { kind: 'miss', dir: '1' } }],
+    ['season.dir null', { ...okFeedback(), season: { kind: 'hit', dir: null } }],
+    ['season.dir missing', { ...okFeedback(), season: { kind: 'hit' } }],
+    ['rarity unknown', { ...okFeedback(), rarity: 'exact' }],
+    ['rarity upper case', { ...okFeedback(), rarity: 'HIT' }],
+    ['rarity an inherited key', { ...okFeedback(), rarity: 'constructor' }],
+    ['rarity an object', { ...okFeedback(), rarity: { hit: true } }],
+    ['rarity null', { ...okFeedback(), rarity: null }],
+    ['rarity missing', feedbackWithout('rarity')],
+    ['slot null', { ...okFeedback(), slot: null }],
+    ['slot missing', feedbackWithout('slot')],
+    ['game unknown', { ...okFeedback(), game: 'D2' }],
+    ['game missing', feedbackWithout('game')],
+    ['type unknown', { ...okFeedback(), type: 'yes' }],
+    ['type absent', feedbackWithout('type')],
+    ['element unknown', { ...okFeedback(), element: 'Solar' }],
+    ['element absent', feedbackWithout('element')],
+    ['class unknown', { ...okFeedback(), class: 'Titan' }],
+    ['class: undefined (absent once serialized)', { ...okFeedback(), class: undefined }],
+    ['class absent', feedbackWithout('class')],
+  ]
+
+  it.each(invalidFeedbacks)('drops a board whose feedback has %s and keeps the valid neighbour', (_label, bad) => {
+    const valid = board({ token: 'ok', guesses: [guess(1), guess(2, true)], status: 'won' })
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        boards: {
+          'free|weapon': valid,
+          'free|armor': { token: 'bad', guesses: [guess(1), { correct: false, guess: display(2), feedback: bad }], status: 'playing' },
+        },
+        streaks: {},
+      }),
+    )
+
+    expect(() => loadBoard('free|armor')).not.toThrow()
+    expect(loadBoard('free|armor')).toBeNull()
+    expect(loadBoard('free|weapon')).toEqual(valid)
+    expectSilent()
+  })
+
+  // `ElementBadge` uses `element` as a lookup key: an object whose `toString`
+  // is not callable throws while being converted to a property key.
+  const invalidElements: ReadonlyArray<[string, unknown]> = [
+    ['an object with a non-callable toString', { toString: 'x' }],
+    ['an array holding such an object', [{ toString: 'x' }]],
+    ['an empty object', {}],
+    ['an array', ['Solar']],
+    ['a number', 7],
+    ['a boolean', true],
+  ]
+
+  it.each(invalidElements)('drops a board whose guess.element is %s', (_label, element) => {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        boards: {
+          'free|weapon': board({ token: 'ok', guesses: [guess(1)] }),
+          'free|armor': { token: 'bad', guesses: [{ ...guess(2), guess: { ...display(2), element } }], status: 'playing' },
+        },
+        streaks: {},
+      }),
+    )
+    expect(() => loadBoard('free|armor')).not.toThrow()
+    expect(loadBoard('free|armor')).toBeNull()
+    expect(loadBoard('free|weapon')?.token).toBe('ok')
+    expectSilent()
+  })
+
+  it.each(invalidElements)('drops a board whose revealed.element is %s', (_label, element) => {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        boards: {
+          'free|weapon': board({ token: 'ok', status: 'lost', revealed: display(1) }),
+          'free|armor': { token: 'bad', guesses: [guess(2)], status: 'lost', revealed: { ...display(9), element } },
+        },
+        streaks: {},
+      }),
+    )
+    expect(() => loadBoard('free|armor')).not.toThrow()
+    expect(loadBoard('free|armor')).toBeNull()
+    expect(loadBoard('free|weapon')?.revealed).toEqual(display(1))
+    expectSilent()
+  })
+
+  it('keeps complete weapon and armor boards restored from storage (every kind, dir and null)', () => {
+    const weapon = board({
+      token: 'w',
+      guesses: [
+        { ...guess(1), feedback: { rarity: 'miss', season: { kind: 'miss', dir: -1 }, slot: 'near', type: 'miss', element: 'near', class: null, game: 'miss' } },
+        { ...guess(2), feedback: { rarity: 'near', season: { kind: 'near', dir: 1 }, slot: 'miss', type: 'near', element: 'miss', class: null, game: 'near' } },
+        { ...guess(3), feedback: { rarity: 'hit', season: { kind: 'near', dir: -1 }, slot: 'hit', type: 'hit', element: 'hit', class: null, game: 'hit' } },
+        { ...guess(4, true), feedback: { rarity: 'hit', season: { kind: 'hit', dir: 0 }, slot: 'hit', type: 'hit', element: 'hit', class: null, game: 'hit' } },
+      ],
+      status: 'won',
+    })
+    const armor = board({
+      token: 'a',
+      date: '2026-07-16',
+      number: 4,
+      guesses: [
+        { correct: false, guess: armorDisplay(5), feedback: armorFeedback('miss', 1) },
+        { correct: false, guess: armorDisplay(6), feedback: armorFeedback('near', -1) },
+        { correct: false, guess: armorDisplay(7), feedback: armorFeedback('hit', 0) },
+      ],
+      status: 'lost',
+      revealed: armorDisplay(8),
+    })
+    const elements = board({
+      token: 'n',
+      guesses: [{ correct: false, guess: { ...display(9), element: 'Strand' }, feedback: okFeedback() }],
+      revealed: { ...display(10), element: null },
+    })
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        boards: { 'free|weapon': weapon, 'daily|armor|2026-07-16': armor, 'free|armor': elements },
+        streaks: {},
+      }),
+    )
+
+    expect(loadBoard('free|weapon')).toEqual(weapon)
+    expect(loadBoard('daily|armor|2026-07-16')).toEqual(armor)
+    expect(loadBoard('free|armor')).toEqual(elements)
+    expectSilent()
+  })
+
+  // SEC-F12 / R-03: every display text of `guess` and `revealed` is
+  // interpolated (`{{ }}` stringifies an object or an array with
+  // `JSON.stringify`, which overflows the stack on a deeply nested value), used
+  // as a lookup key (`element`) or as a link (`lightGgUrl`): only a string,
+  // `null` or nothing is kept. Listed here independently of the implementation.
+  const DISPLAY_TEXT_KEYS: ReadonlyArray<Exclude<keyof ItemDisplay, 'id'>> = [
+    'nameEn',
+    'nameFr',
+    'game',
+    'rarityEn',
+    'rarityFr',
+    'seasonEn',
+    'seasonFr',
+    'slotEn',
+    'slotFr',
+    'typeEn',
+    'typeFr',
+    'element',
+    'elementEn',
+    'elementFr',
+    'classEn',
+    'classFr',
+    'lightGgUrl',
+  ]
+
+  /** Item display whose every text field is `null` (only `id` is set). */
+  const nullTexts = (id: number): Record<string, unknown> => {
+    const d: Record<string, unknown> = { id }
+    for (const k of DISPLAY_TEXT_KEYS) d[k] = null
+    return d
+  }
+
+  /**
+   * Raw JSON values that are neither a string nor `null`. The nested ones are
+   * 10 000 levels deep (the reviewer's reproduction overflowed from ~3 000);
+   * they are spliced in as raw text since `JSON.stringify` overflows on them.
+   */
+  const DEPTH = 10_000
+  const DEEP_ARRAY = '['.repeat(DEPTH) + ']'.repeat(DEPTH)
+  const NOT_TEXT: ReadonlyArray<[string, string]> = [
+    ['an array', '["Solar"]'],
+    ['an object', '{"en":"Solar"}'],
+    ['a number', '7'],
+    ['a boolean', 'false'],
+    ['a deeply nested array', DEEP_ARRAY],
+    ['a deeply nested object', '{"a":'.repeat(DEPTH) + '{}' + '}'.repeat(DEPTH)],
+  ]
+
+  /** Placeholder replaced by a raw JSON value in `rawStoreWith`. */
+  const SLOT = '__not_text__'
+  const rawStoreWith = (boards: Record<string, unknown>, rawValue: string): string =>
+    JSON.stringify({ boards, streaks: {} }).replace(`"${SLOT}"`, () => rawValue)
+
+  it('lists every text field of ItemDisplay', () => {
+    const fixtureKeys = Object.keys(display(1)).filter((k) => k !== 'id')
+    expect([...DISPLAY_TEXT_KEYS].sort()).toEqual(fixtureKeys.sort())
+  })
+
+  it.each(DISPLAY_TEXT_KEYS)('drops a board whose guess.%s is neither a string nor null', (key) => {
+    const valid = board({ token: 'ok', guesses: [guess(1), guess(2, true)], status: 'won' })
+    for (const [label, raw] of NOT_TEXT) {
+      localStorage.setItem(
+        STORAGE_KEY,
+        rawStoreWith(
+          {
+            'free|weapon': valid,
+            'free|armor': {
+              token: 'bad',
+              guesses: [guess(1), { ...guess(2), guess: { ...display(2), [key]: SLOT } }],
+              status: 'playing',
+            },
+          },
+          raw,
+        ),
+      )
+      expect(() => loadBoard('free|armor'), label).not.toThrow()
+      expect(loadBoard('free|armor'), label).toBeNull()
+      expect(loadBoard('free|weapon'), label).toEqual(valid)
+    }
+    expectSilent()
+  })
+
+  it.each(DISPLAY_TEXT_KEYS)('drops a board whose revealed.%s is neither a string nor null', (key) => {
+    const valid = board({ token: 'ok', guesses: [guess(1)], status: 'lost', revealed: display(9) })
+    for (const [label, raw] of NOT_TEXT) {
+      localStorage.setItem(
+        STORAGE_KEY,
+        rawStoreWith(
+          {
+            'free|weapon': valid,
+            'free|armor': { token: 'bad', guesses: [guess(1)], status: 'lost', revealed: { ...display(8), [key]: SLOT } },
+          },
+          raw,
+        ),
+      )
+      expect(() => loadBoard('free|armor'), label).not.toThrow()
+      expect(loadBoard('free|armor'), label).toBeNull()
+      expect(loadBoard('free|weapon'), label).toEqual(valid)
+    }
+    expectSilent()
+  })
+
+  it('keeps display texts that are null or absent, on guess and on revealed', () => {
+    const boards: Record<string, unknown> = {
+      'free|weapon': {
+        token: 'w',
+        guesses: [
+          { correct: false, guess: nullTexts(1), feedback: okFeedback() },
+          { correct: true, guess: { id: 2 }, feedback: okFeedback() },
+        ],
+        status: 'won',
+      },
+      'free|armor': {
+        token: 'a',
+        guesses: [{ correct: false, guess: { id: 3 }, feedback: armorFeedback('miss', 1) }],
+        status: 'lost',
+        revealed: nullTexts(4),
+      },
+      'daily|armor|2026-07-16': {
+        token: 'd',
+        date: '2026-07-16',
+        number: 1,
+        guesses: [{ correct: false, guess: nullTexts(5), feedback: armorFeedback('near', -1) }],
+        status: 'lost',
+        revealed: {},
+      },
+    }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ boards, streaks: {} }))
+    for (const [key, b] of Object.entries(boards)) expect(loadBoard(key), key).toEqual(b)
+    expectSilent()
+  })
+
+  // R-03 reproduction, end to end: storage → `loadBoard` → what `App.vue`
+  // renders for the restored board (grid, then the win panel on the last guess
+  // or the lose panel on `revealed`), in a plain Vue app as in production.
+  describe('rendering of a restored board (SEC-F12)', () => {
+    /**
+     * Mounts what `App.vue` shows for `loadBoard(key)` and collects the render
+     * errors and Vue warnings instead of letting Vue log them.
+     */
+    async function renderRestored(key: string, category: Category, locale: 'fr' | 'en') {
+      const restored = loadBoard(key)
+      const errors: string[] = []
+      const warnings: string[] = []
+      const el = document.createElement('div')
+      document.body.appendChild(el)
+      const app = createApp({
+        render: () => {
+          if (!restored) return null
+          const last = restored.guesses[restored.guesses.length - 1]
+          return [
+            restored.guesses.length > 0
+              ? h(GuessBoard, { category, guesses: restored.guesses, done: restored.status !== 'playing' })
+              : null,
+            restored.status === 'won' && last
+              ? h(WinPanel, { target: last.guess, guessCount: restored.guesses.length, mode: 'free', category })
+              : null,
+            restored.status === 'lost' && restored.revealed
+              ? h(LosePanel, { target: restored.revealed, mode: 'free' })
+              : null,
+          ]
+        },
+      })
+      app.use(createI18n({ legacy: false, locale, fallbackLocale: 'fr', messages: { fr, en } }))
+      app.config.errorHandler = (e) => {
+        errors.push(String(e))
+      }
+      app.config.warnHandler = (msg) => {
+        warnings.push(msg)
+      }
+      app.mount(el)
+      await nextTick()
+      const rows = el.querySelectorAll('.guess-row:not(.header-row)').length
+      const panels = el.querySelectorAll('.win-panel').length
+      app.unmount()
+      el.remove()
+      return { restored, errors, warnings, rows, panels }
+    }
+
+    it.each([
+      ['guess', 'nameEn', 'en'],
+      ['guess', 'game', 'fr'],
+      ['revealed', 'nameFr', 'fr'],
+      ['revealed', 'game', 'en'],
+    ] as const)('a deeply nested %s.%s never reaches the rendering (%s)', async (side, key, locale) => {
+      const okWeapon = board({ token: 'ok', guesses: [guess(1), guess(2, true)], status: 'won' })
+      const bad =
+        side === 'guess'
+          ? { token: 'bad', guesses: [guess(1), { ...guess(2, true), guess: { ...display(2), [key]: SLOT } }], status: 'won' }
+          : {
+              token: 'bad',
+              guesses: [{ correct: false, guess: armorDisplay(5), feedback: armorFeedback('miss', 1) }],
+              status: 'lost',
+              revealed: { ...armorDisplay(8), [key]: SLOT },
+            }
+      const category: Category = side === 'guess' ? 'weapon' : 'armor'
+      localStorage.setItem(
+        STORAGE_KEY,
+        rawStoreWith({ 'daily|weapon|2026-07-16': okWeapon, [`free|${category}`]: bad }, DEEP_ARRAY),
+      )
+
+      const dropped = await renderRestored(`free|${category}`, category, locale)
+      expect(dropped.errors).toEqual([])
+      expect(dropped.warnings).toEqual([])
+      expect(dropped.restored).toBeNull()
+
+      const kept = await renderRestored('daily|weapon|2026-07-16', 'weapon', locale)
+      expect(kept.errors).toEqual([])
+      expect(kept.warnings).toEqual([])
+      expect(kept.rows).toBe(2)
+      expect(kept.panels).toBe(1)
+      expectSilent()
+    })
+
+    it.each(['fr', 'en'] as const)('renders every accepted restored board without error or warning (%s)', async (locale) => {
+      const boards: Record<string, [Category, StoredBoard, number]> = {
+        'free|weapon': [
+          'weapon',
+          board({ token: 'w', guesses: [guess(1), { ...guess(2, true), guess: { ...display(2), element: 'Strand' } }], status: 'won' }),
+          2,
+        ],
+        'free|armor': [
+          'armor',
+          board({
+            token: 'a',
+            guesses: [{ correct: false, guess: armorDisplay(5), feedback: armorFeedback('near', -1) }],
+            status: 'lost',
+            revealed: armorDisplay(8),
+          }),
+          1,
+        ],
+        'daily|weapon|2026-07-16': [
+          'weapon',
+          {
+            token: 'n',
+            date: '2026-07-16',
+            number: 1,
+            guesses: [
+              { correct: false, guess: nullTexts(1), feedback: okFeedback() },
+              { correct: true, guess: { id: 2 }, feedback: okFeedback() },
+            ],
+            status: 'won',
+          } as unknown as StoredBoard,
+          2,
+        ],
+        'daily|armor|2026-07-16': [
+          'armor',
+          {
+            token: 'm',
+            date: '2026-07-16',
+            number: 1,
+            guesses: [
+              { correct: false, guess: nullTexts(3), feedback: armorFeedback('miss', 1) },
+              { correct: false, guess: { id: 4 }, feedback: armorFeedback('hit', 0) },
+            ],
+            status: 'lost',
+            revealed: {},
+          } as unknown as StoredBoard,
+          2,
+        ],
+      }
+      const stored: Record<string, StoredBoard> = {}
+      for (const [key, [, b]] of Object.entries(boards)) stored[key] = b
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ boards: stored, streaks: {} }))
+
+      for (const [key, [category, b, rows]] of Object.entries(boards)) {
+        const r = await renderRestored(key, category, locale)
+        expect(r.restored, key).toEqual(b)
+        expect(r.errors, key).toEqual([])
+        expect(r.warnings, key).toEqual([])
+        expect(r.rows, key).toBe(rows)
+        expect(r.panels, key).toBe(1)
+      }
+      expectSilent()
+    })
   })
 
   it.each([

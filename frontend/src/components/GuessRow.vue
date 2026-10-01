@@ -5,8 +5,9 @@
  * game; armor: rarity, season, class, slot (= the piece type), game.
  * The season cell adds ▲ when the target is more recent and ▼ when it is
  * older; a season hit has no arrow (CT-04: `dir` 0 ⇔ hit).
- * The latest row flips its feedback cells in sequence, 110 ms per column
- * (REQ-012, prototype); older rows and finished boards render static cells.
+ * Only the row flagged `isLatest` by `GuessBoard` flips its feedback cells,
+ * in sequence, 110 ms per column (REQ-012, prototype), the final winning or
+ * losing row included (see GuessBoard for the restored one-guess case).
  */
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'

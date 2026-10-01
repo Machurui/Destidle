@@ -9,8 +9,16 @@
  * Any corrupted or unreadable content is silently replaced by an empty store,
  * and a storage failure (quota, disabled storage) never throws: the game keeps
  * working without persistence.
+ *
+ * A restored board is kept only if every field that the grid and the win/lose
+ * panels read when rendering it has the type the API sends (SEC-F12): the
+ * CT-04 feedback values, a numeric `guess.id`, and a string, `null` or nothing
+ * for each display text of `guess` and `revealed`. Only the type is checked: a
+ * well-typed but unexpected value (unknown element, foreign URL) is handled by
+ * the component that renders it (SEC-F8, SEC-F11). Keys the rendering does not
+ * read are neither checked nor removed.
  */
-import type { Category, GuessResult, ItemDisplay, Mode } from '@/lib/api'
+import type { Category, Feedback, GuessResult, ItemDisplay, MatchKind, Mode, SeasonFeedback } from '@/lib/api'
 
 export const STORAGE_KEY = 'destidle.v1'
 
@@ -41,6 +49,8 @@ interface Store {
 }
 
 const BOARD_STATUSES: readonly BoardStatus[] = ['playing', 'won', 'lost']
+const MATCH_KINDS: readonly MatchKind[] = ['hit', 'near', 'miss']
+const SEASON_DIRS: readonly SeasonFeedback['dir'][] = [-1, 0, 1]
 /** `yyyy-MM-dd` as issued by the API; anything else is treated as corrupted. */
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
@@ -56,19 +66,94 @@ function isDate(v: unknown): v is string {
   return typeof v === 'string' && DATE_RE.test(v)
 }
 
+function isMatchKind(v: unknown): v is MatchKind {
+  return MATCH_KINDS.includes(v as MatchKind)
+}
+
+/** `type` / `element` / `class` (CT-04): present, `null` when not applicable. */
+function isMatchKindOrNull(v: unknown): v is MatchKind | null {
+  return v === null || isMatchKind(v)
+}
+
+function isSeasonFeedback(v: unknown): v is SeasonFeedback {
+  return isRecord(v) && isMatchKind(v.kind) && SEASON_DIRS.includes(v.dir as SeasonFeedback['dir'])
+}
+
 /**
- * Shallow check of a stored guess: enough for the computed views (`usedIds`,
- * board rendering) to never throw on a partially corrupted store. Nested
- * fields of `guess` / `feedback` are not validated (SEC-F8 is handled at
- * render time).
+ * Every field `GuessRow` reads (CT-04): `season` is dereferenced
+ * (`season.kind`, `season.dir`), the other kinds become CSS class tokens.
+ * The `dir == 0 ⇔ kind == hit` coupling is not enforced: any combination
+ * renders without error.
+ */
+function isFeedback(v: unknown): v is Feedback {
+  return (
+    isRecord(v) &&
+    isMatchKind(v.rarity) &&
+    isSeasonFeedback(v.season) &&
+    isMatchKind(v.slot) &&
+    isMatchKindOrNull(v.type) &&
+    isMatchKindOrNull(v.element) &&
+    isMatchKindOrNull(v.class) &&
+    isMatchKind(v.game)
+  )
+}
+
+/**
+ * Every text field of `ItemDisplay` (all of them but `id`), each read by
+ * `GuessRow`, `WinPanel` or `LosePanel`. The API sends a string or `null` for
+ * each one (`ItemDisplayDto`). Typed as a record so that the compiler rejects
+ * a missing or an unknown key when `ItemDisplay` changes.
+ */
+const DISPLAY_TEXT_FIELDS: Readonly<Record<Exclude<keyof ItemDisplay, 'id'>, true>> = {
+  nameEn: true,
+  nameFr: true,
+  game: true,
+  rarityEn: true,
+  rarityFr: true,
+  seasonEn: true,
+  seasonFr: true,
+  slotEn: true,
+  slotFr: true,
+  typeEn: true,
+  typeFr: true,
+  element: true,
+  elementEn: true,
+  elementFr: true,
+  classEn: true,
+  classFr: true,
+  lightGgUrl: true,
+}
+const DISPLAY_TEXT_KEYS: readonly string[] = Object.keys(DISPLAY_TEXT_FIELDS)
+
+function isOptionalText(v: unknown): v is string | null | undefined {
+  return v === undefined || v === null || typeof v === 'string'
+}
+
+/**
+ * A stored item display (`guess` of a guess, `revealed` of a board): each
+ * text field must be a string, `null` or absent — an absent one renders empty
+ * or `—`. Any other JSON value is rejected: `{{ }}` interpolates an object or
+ * an array through `JSON.stringify`, which throws a `RangeError` on a deeply
+ * nested value, and `ElementBadge` uses `element` as a lookup key, which
+ * throws for an object whose `toString` is not callable (`{"toString":"x"}`).
+ * `id` is not checked here (see `isGuessResult`); it is not rendered.
+ */
+function isDisplay(v: unknown): v is Record<string, unknown> {
+  return isRecord(v) && DISPLAY_TEXT_KEYS.every((k) => isOptionalText(v[k]))
+}
+
+/**
+ * Check of a stored guess: `guess.id` feeds the computed `usedIds` (SEC-F7);
+ * the display texts and the feedback are what the row and the win panel
+ * render (SEC-F12). URL safety stays a render-time concern (SEC-F8).
  */
 function isGuessResult(v: unknown): v is GuessResult {
   return (
     isRecord(v) &&
     typeof v.correct === 'boolean' &&
-    isRecord(v.guess) &&
+    isDisplay(v.guess) &&
     typeof v.guess.id === 'number' &&
-    isRecord(v.feedback)
+    isFeedback(v.feedback)
   )
 }
 
@@ -81,7 +166,7 @@ function isBoard(v: unknown): v is StoredBoard {
     BOARD_STATUSES.includes(v.status as BoardStatus) &&
     (v.date === undefined || isDate(v.date)) &&
     (v.number === undefined || typeof v.number === 'number') &&
-    (v.revealed === undefined || isRecord(v.revealed))
+    (v.revealed === undefined || isDisplay(v.revealed))
   )
 }
 

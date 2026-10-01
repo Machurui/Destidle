@@ -12,3 +12,8 @@ frontend/dist/
 .dev-orchestrator/
 # ralph-loop : état de boucle local
 .claude/ralph-loop.local.md
+
+# build front copié pour la prod (README)
+backend/Destidle.Api/wwwroot/
+# secret de production éventuel (préférer la variable Game__HmacSecret)
+backend/Destidle.Api/appsettings.Production.json
