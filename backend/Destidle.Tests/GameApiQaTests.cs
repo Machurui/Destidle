@@ -160,6 +160,7 @@ public class GameApiQaTests : IClassFixture<ApiTestFactory>
     {
         var resp = await _client.PostAsync(route, new StringContent("{bad json", Encoding.UTF8, "application/json"));
         Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
+        Assert.Equal("application/problem+json", resp.Content.Headers.ContentType?.MediaType);
     }
 
     [Fact]
