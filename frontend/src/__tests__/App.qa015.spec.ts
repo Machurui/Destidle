@@ -298,8 +298,8 @@ describe('App shell × real useGame (QA TASK-015)', () => {
       'header.topbar',
       'section.intel',
       'div.splash-stage',
+      'div.win-panel.loss', // the answer sits above the board
       'div.board',
-      'div.win-panel.loss',
       'footer.footer',
     ])
     expect(stats(wrapper)['SÉRIE']).toBe('0')

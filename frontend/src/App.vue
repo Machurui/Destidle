@@ -2,8 +2,9 @@
 /**
  * Application shell (REQ-010 / REQ-012 / REQ-015): one screen driven by a
  * single `useGame()` instance, composed of the prototype's blocks in order
- * (top bar, error banner, intel, splash, search, board, win/lose panel,
- * legend, footer). No router, no store: `g` holds the whole state.
+ * (top bar, error banner, intel, splash, search, board, legend, footer).
+ * Once the game is over, the win/lose panel takes the search box's place,
+ * above the board. No router, no store: `g` holds the whole state.
  *
  * DEC-010: the category/mode switches are disabled only while a guess is
  * being submitted; the "new game" buttons of the panels are disabled while
@@ -84,13 +85,7 @@ const wonTarget = computed(() => g.guesses.value[g.guesses.value.length - 1]?.gu
         @pick="g.submitGuess"
       />
 
-      <GuessBoard
-        v-if="g.guesses.value.length > 0"
-        :category="g.category.value"
-        :guesses="g.guesses.value"
-        :done="g.status.value !== 'playing'"
-      />
-
+      <!-- Game over: the answer takes the search box's place, above the board. -->
       <WinPanel
         v-if="g.status.value === 'won' && wonTarget"
         :target="wonTarget"
@@ -107,6 +102,13 @@ const wonTarget = computed(() => g.guesses.value[g.guesses.value.length - 1]?.gu
         :mode="g.mode.value"
         :busy="busy"
         @new-game="g.newFree"
+      />
+
+      <GuessBoard
+        v-if="g.guesses.value.length > 0"
+        :category="g.category.value"
+        :guesses="g.guesses.value"
+        :done="g.status.value !== 'playing'"
       />
 
       <Legend v-if="g.status.value === 'playing' && g.guesses.value.length === 0" />

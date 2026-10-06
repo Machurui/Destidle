@@ -371,6 +371,23 @@ describe('App shell', () => {
     })
   })
 
+  describe('end-of-game layout', () => {
+    it.each([
+      ['won', () => board({ guesses: guesses(3, true), status: 'won' })],
+      ['lost', () => board({ guesses: guesses(8), status: 'lost', revealed: target })],
+    ])('shows the answer between the splash and the board when %s', (_, endBoard) => {
+      game.mode.value = 'free'
+      game.board.value = endBoard()
+      const wrapper = mountApp()
+
+      const splash = wrapper.find('.splash-stage').element
+      const panel = wrapper.find('.win-panel').element
+      const guessBoard = wrapper.find('.board').element
+      expect(splash.compareDocumentPosition(panel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+      expect(panel.compareDocumentPosition(guessBoard) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    })
+  })
+
   describe('busy states (DEC-010)', () => {
     it('disables the category/mode switches while submitting, never the locale switch', async () => {
       game.board.value = board()
