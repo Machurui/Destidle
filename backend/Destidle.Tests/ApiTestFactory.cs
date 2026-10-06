@@ -57,10 +57,10 @@ public sealed class ApiTestFactory : WebApplicationFactory<Program>
         Directory.CreateDirectory(Path.Combine(AssetsDir, "icons"));
         Directory.CreateDirectory(Path.Combine(AssetsDir, "splash"));
         using (var img = new Image<Rgba32>(400, 400, new Rgba32(60, 120, 90)))
-        {
             img.SaveAsJpeg(Path.Combine(AssetsDir, "icons", "test.jpg"));
+        // Splash plus grand que le plus haut niveau (720) : chaque niveau est servi à sa résolution exacte.
+        using (var img = new Image<Rgba32>(800, 800, new Rgba32(60, 120, 90)))
             img.SaveAsJpeg(Path.Combine(AssetsDir, "splash", "test.jpg"));
-        }
         builder.UseSetting("Assets:Dir", AssetsDir);
         builder.UseSetting("Database:Path", Path.Combine(AssetsDir, "destidle.db"));
         builder.UseSetting("Game:HmacSecret", Secret);

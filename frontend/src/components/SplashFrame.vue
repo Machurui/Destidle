@@ -3,7 +3,8 @@
  * Pixelated splash + 10-tick signal bar (REQ-010, CT-05). `level` is the
  * pixelation level 0..9 (9 = sharp): tick `i` lights up when `i - 1 <= level`,
  * so level 0 shows one tick and level 9 all ten; the frame glows at level 9.
- * Upscaling (`image-rendering: pixelated`) comes from `.splash-canvas` in main.css.
+ * Upscaling (`image-rendering: pixelated`) comes from `.splash-canvas` in main.css;
+ * the revealed image (level 9) is scaled smoothly instead.
  */
 defineProps<{ src: string | null; level: number }>()
 </script>

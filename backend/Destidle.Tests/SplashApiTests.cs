@@ -45,10 +45,10 @@ public class SplashApiTests : IClassFixture<ApiTestFactory>
 
     private static string SplashPath(ApiTestFactory f) => Path.Combine(f.AssetsDir, "splash", "test.jpg");
 
-    /// <summary>Réécrit la fixture partagée par tous les items du seed (400×400 uni, comme ApiTestFactory).</summary>
+    /// <summary>Réécrit la fixture partagée par tous les items du seed (800×800 uni, comme ApiTestFactory).</summary>
     private static void WriteValidSplash(string path)
     {
-        using var img = new Image<Rgba32>(400, 400, new Rgba32(60, 120, 90));
+        using var img = new Image<Rgba32>(800, 800, new Rgba32(60, 120, 90));
         img.SaveAsJpeg(path);
     }
 
@@ -57,7 +57,7 @@ public class SplashApiTests : IClassFixture<ApiTestFactory>
     [Theory]
     [InlineData(0, 10)]
     [InlineData(4, 54)]
-    [InlineData(9, 400)]
+    [InlineData(9, 720)] // révélation : 2 × le cadre de 360 px, net sur écran Retina
     public async Task Splash_LevelControlsResolution(int level, int expectedMax)
     {
         var token = await FreeTokenAsync(_client);
@@ -74,7 +74,7 @@ public class SplashApiTests : IClassFixture<ApiTestFactory>
         var bytes = await resp.Content.ReadAsByteArrayAsync();
         Assert.IsType<JpegFormat>(Image.DetectFormat(bytes));
         using var img = Image.Load(bytes);
-        // La source de la fixture fait 400×400 : min(RES[level], 400) = RES[level], égalité exacte.
+        // La source de la fixture fait 800×800 : min(RES[level], 800) = RES[level], égalité exacte.
         Assert.Equal(expectedMax, Math.Max(img.Width, img.Height));
         Assert.Equal(SplashEndpoints.Res[level], expectedMax);
     }
@@ -173,6 +173,27 @@ public class SplashApiTests : IClassFixture<ApiTestFactory>
         Assert.Equal(96, img.Height);
     }
 
+    /// <summary>Screenshot D2 16:9, objet décentré : servi en carré (cadre carré côté front, `object-fit: cover`).</summary>
+    [Fact]
+    public async Task Splash_WideSource_IsServedSquare()
+    {
+        using var f = new ApiTestFactory();
+        var client = f.CreateClient();
+        using (var wide = new Image<Rgba32>(1920, 1080, new Rgba32(40, 40, 45)))
+        {
+            for (int y = 300; y < 800; y++)
+                for (int x = 1300; x < 1700; x++)
+                    wide[x, y] = new Rgba32(230, 120, 40);
+            wide.SaveAsJpeg(SplashPath(f));
+        }
+
+        var token = await FreeTokenAsync(client);
+        var resp = await client.GetAsync($"/api/game/splash?token={token}&level=9");
+        Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+        using var img = Image.Load(await resp.Content.ReadAsByteArrayAsync());
+        Assert.Equal(img.Width, img.Height);
+    }
+
     /// <summary>
     /// Cache par (game, bungieHash, niveau). Limite (C3) : seule la séparation **par niveau** est exercée ici, car tous
     /// les items du seed partagent le même <c>test.jpg</c> (ApiTestFactory) ; la séparation par item repose sur la clé
@@ -249,10 +270,10 @@ public class SplashApiTests : IClassFixture<ApiTestFactory>
         Assert.DoesNotContain("destidle-test", Encoding.ASCII.GetString(bytes)); // valeur EXIF absente des octets bruts
     }
 
-    /// <summary>Fixture 400×400 portant EXIF (Software), XMP et un profil ICC minimal valide (en-tête 128 o, 0 tag).</summary>
+    /// <summary>Fixture 800×800 portant EXIF (Software), XMP et un profil ICC minimal valide (en-tête 128 o, 0 tag).</summary>
     private static void WriteSplashWithMetadata(string path)
     {
-        using var img = new Image<Rgba32>(400, 400, new Rgba32(60, 120, 90));
+        using var img = new Image<Rgba32>(800, 800, new Rgba32(60, 120, 90));
         var exif = new ExifProfile();
         exif.SetValue(ExifTag.Software, "destidle-test");
         img.Metadata.ExifProfile = exif;

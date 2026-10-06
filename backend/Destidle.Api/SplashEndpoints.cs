@@ -1,19 +1,23 @@
 using Microsoft.Extensions.Caching.Memory;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Jpeg;
+using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 
 namespace Destidle.Api;
 
 /// <summary>
 /// EP-007 : <c>GET /api/game/splash?token=…&amp;level=0..9</c> → JPEG réduit par ImageSharp (REQ-010).
-/// Le plus grand côté servi vaut <c>min(Res[level], max(largeur, hauteur) de la source)</c> : jamais
-/// d'agrandissement, ratio conservé. Cache mémoire par (game, bungieHash, level).
+/// La source est d'abord recadrée en carré centré sur l'objet (<see cref="SplashCrop"/>) ; le côté servi vaut
+/// <c>min(Res[level], côté de ce carré)</c> : jamais d'agrandissement. Cache mémoire par (game, bungieHash, level).
 /// </summary>
 public static class SplashEndpoints
 {
-    /// <summary>Plus grand côté (px) par niveau 0..9, résolutions du prototype.</summary>
-    public static readonly int[] Res = [10, 16, 24, 36, 54, 80, 120, 180, 280, 400];
+    /// <summary>
+    /// Plus grand côté (px) par niveau 0..9, résolutions du prototype. Le niveau 9 (révélation) vaut 720 au lieu de
+    /// 400 : deux fois le cadre de 360 px, pour une image nette sur écran Retina.
+    /// </summary>
+    public static readonly int[] Res = [10, 16, 24, 36, 54, 80, 120, 180, 280, 720];
 
     private static readonly TimeSpan CacheTtl = TimeSpan.FromHours(12);
 
@@ -66,10 +70,14 @@ public static class SplashEndpoints
         });
     }
 
-    /// <summary>Réduit la source pour que son plus grand côté vaille min(maxSide, source) et l'encode en JPEG.</summary>
+    /// <summary>
+    /// Recadre la source en carré autour de l'objet (<see cref="SplashCrop"/>), réduit ce carré à min(maxSide, côté)
+    /// et l'encode en JPEG.
+    /// </summary>
     private static async Task<byte[]> RenderAsync(string path, int maxSide)
     {
-        using var img = await Image.LoadAsync(path);
+        using var source = await Image.LoadAsync<Rgb24>(path);
+        using var img = SplashCrop.SquareAroundSubject(source);
         // Plafond à la source : les icônes D1 font 96 px, on ne les agrandit pas.
         var side = Math.Min(maxSide, Math.Max(img.Width, img.Height));
         img.Mutate(x => x.Resize(new ResizeOptions

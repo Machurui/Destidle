@@ -146,6 +146,8 @@ body::before {
 .splash-frame { position: relative; background: #0a0d13; border: 1px solid var(--color-line); border-radius: 4px; overflow: hidden; transition: box-shadow .6s; }
 .splash-frame.revealed { box-shadow: 0 0 0 1px color-mix(in oklab, var(--color-accent) 60%, transparent), 0 0 60px color-mix(in oklab, var(--color-accent) 30%, transparent); }
 .splash-canvas { display: block; width: 100%; height: 100%; object-fit: cover; image-rendering: pixelated; transition: filter .35s; }
+/* Revealed image: smooth scaling, otherwise D1 icons (96 px source) stay blocky in the 360px frame. */
+.splash-frame.revealed .splash-canvas { image-rendering: auto; }
 .splash-corners .cnr { position: absolute; width: 18px; height: 18px; border: 1px solid var(--color-accent); opacity: 0.7; }
 .splash-corners .tl { top: 8px; left: 8px; border-right: 0; border-bottom: 0; }
 .splash-corners .tr { top: 8px; right: 8px; border-left: 0; border-bottom: 0; }
