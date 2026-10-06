@@ -38,8 +38,9 @@ public static class D1Mapper
             var root = doc.RootElement;
             if (Get(root, "tierType")?.GetInt32() != 6) continue;
             if (Get(root, "equippable")?.GetBoolean() != true) continue;
-            var name = Get(root, "itemName")?.GetString();
-            if (string.IsNullOrWhiteSpace(name)) continue;
+            var rawName = Get(root, "itemName")?.GetString();
+            if (string.IsNullOrWhiteSpace(rawName)) continue;
+            var name = D1Names.Clean(rawName, french: false);
             var bucket = Get(root, "bucketTypeHash")?.GetInt64() ?? 0;
             var isWeapon = WeaponSlotByBucket.ContainsKey(bucket);
             var isArmor = ArmorBuckets.Contains(bucket);
@@ -48,13 +49,13 @@ public static class D1Mapper
             using var docFr = JsonDocument.Parse(frJson);
             var rootFr = docFr.RootElement;
 
-            var era = eraByNameEn.TryGetValue(name!, out var e) ? e : -1; // -1 = inconnu, signalé par ReportMissingEras
+            var era = eraByNameEn.TryGetValue(name, out var e) ? e : -1; // -1 = inconnu, signalé par ReportMissingEras
 
             var item = new Item
             {
                 BungieHash = hash, Game = Game.D1,
                 Category = isWeapon ? ItemCategory.Weapon : ItemCategory.Armor,
-                NameEn = name!, NameFr = Get(rootFr, "itemName")?.GetString() ?? name!,
+                NameEn = name, NameFr = D1Names.Clean(Get(rootFr, "itemName")?.GetString() ?? name, french: true),
                 RarityEn = Get(root, "tierTypeName")?.GetString() ?? "Exotic",
                 RarityFr = Get(rootFr, "tierTypeName")?.GetString() ?? "Exotique",
                 TypeEn = Get(root, "itemTypeName")?.GetString() ?? "",

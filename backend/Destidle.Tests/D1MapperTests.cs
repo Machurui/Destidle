@@ -89,6 +89,31 @@ public class D1MapperTests : IDisposable
         Assert.Equal("Les Ténèbres souterraines", g.SeasonFr);
     }
 
+    [Theory]
+    [InlineData("((FEVER AND REMEDY~))", "((FIÈVRE ET REMÈDE~))", "Fever and Remedy", "Fièvre et remède")]
+    [InlineData("((STEEL MEDULLA~))", "((NERFS D'ACIER~))", "Steel Medulla", "Nerfs d'acier")]
+    public void DecoratedName_BecomesPlainText_AndKeysTheEra(string rawEn, string rawFr, string en, string fr)
+    {
+        var enDb = MakeDb("en", (8, WeaponJson(8, rawEn, 1498876634, 0)));
+        var frDb = MakeDb("fr", (8, WeaponJson(8, rawFr, 1498876634, 0)));
+        var eras = new Dictionary<string, int> { [en] = 5 };
+        var items = D1Mapper.Map(enDb, frDb, eras, _ => { });
+        var g = Assert.Single(items).Item;
+        Assert.Equal(en, g.NameEn);
+        Assert.Equal(fr, g.NameFr);
+        Assert.Equal(5, g.SeasonIdx);
+        Assert.Empty(D1Mapper.ReportMissingEras(items, eras));
+    }
+
+    [Fact]
+    public void NonBreakingSpace_BecomesPlainSpace()
+    {
+        var en = MakeDb("en", (9, WeaponJson(9, "The Third Man", 1498876634, 0)));
+        var fr = MakeDb("fr", (9, WeaponJson(9, "Masque du Troisième homme", 1498876634, 0)));
+        var items = D1Mapper.Map(en, fr, new Dictionary<string, int> { ["The Third Man"] = 0 }, _ => { });
+        Assert.Equal("Masque du Troisième homme", Assert.Single(items).Item.NameFr);
+    }
+
     public void Dispose()
     {
         SqliteConnection.ClearAllPools(); // libère les handles sqlite avant suppression
