@@ -17,3 +17,6 @@ frontend/dist/
 backend/Destidle.Api/wwwroot/
 # secret de production éventuel (préférer la variable Game__HmacSecret)
 backend/Destidle.Api/appsettings.Production.json
+
+# serena : configuration locale de l'outil, non versionnée
+.serena/

@@ -157,3 +157,9 @@ Règle des statuts :
 - `reveal` peut être appelé à tout moment (se spoiler reste possible, comme dans Wordle ou Loldle) ; le serveur n'impose ni le nombre d'essais ni un débit.
 - Les données sont figées entre deux imports.
 - Navigateurs : le CSS buildé utilise la syntaxe de plage des media queries (`width<=980px`), qui demande Chrome ≥ 104, Firefox ≥ 63 ou Safari ≥ 16.4.
+
+## Licence
+
+Ce projet est distribué sous une licence non commerciale (voir [`LICENSE`](LICENSE)). Vous pouvez utiliser, copier et modifier le code à des fins personnelles, éducatives ou de recherche non commerciale. Pour un usage commercial, contactez francois.serra00@gmail.com.
+
+Destiny, ses objets et ses images sont la propriété de Bungie. Le dépôt ne contient aucune image du jeu : elles sont téléchargées depuis l'API Bungie à l'import.
