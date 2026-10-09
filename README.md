@@ -2,8 +2,6 @@
 
 Jeu quotidien façon Loldle : deviner un exotique de Destiny 1 ou Destiny 2 en 8 essais au plus, dans deux catégories séparées (**Armes** et **Armures**, cette dernière limitée à D2). Chaque essai renvoie un retour par attribut et affine un visuel pixelisé ; un mode libre propose des parties illimitées. Le moteur de jeu tourne côté serveur : la réponse n'est jamais dans le bundle client.
 
-Conception de référence : [`docs/superpowers/specs/2026-07-16-destidle-design.md`](docs/superpowers/specs/2026-07-16-destidle-design.md).
-
 | Dossier | Contenu |
 |---|---|
 | `backend/Destidle.Core` | domaine, comparaison des essais, choix du défi du jour |
@@ -151,7 +149,7 @@ Règle des statuts :
 
 ## Limites v1 et hors périmètre
 
-- Hors périmètre v1 (spec §12) : comptes et statistiques globales, classements, armes et armures légendaires, modes supplémentaires (citation de lore, indice de perk), PWA/mobile, tests E2E Playwright, limitation de débit.
+- Hors périmètre v1 : comptes et statistiques globales, classements, armes et armures légendaires, modes supplémentaires (citation de lore, indice de perk), PWA/mobile, tests E2E Playwright, limitation de débit.
 - Pas d'**historique** des parties : seuls le plateau courant de chaque contexte (catégorie × mode) et la série de victoires sont conservés dans le `localStorage`.
 - « Copier le résultat » n'existe qu'en cas de victoire.
 - `reveal` peut être appelé à tout moment (se spoiler reste possible, comme dans Wordle ou Loldle) ; le serveur n'impose ni le nombre d'essais ni un débit.

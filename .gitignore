@@ -20,3 +20,6 @@ backend/Destidle.Api/appsettings.Production.json
 
 # serena : configuration locale de l'outil, non versionnée
 .serena/
+
+# docs de conception et plans de travail : locaux, non publiés
+docs/
