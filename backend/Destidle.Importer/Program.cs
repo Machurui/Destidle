@@ -90,6 +90,18 @@ if (missing.Count > 0)
 }
 if (reportOnly) { Console.WriteLine("Rapport OK — aucune ère manquante."); return 0; }
 
+Console.WriteLine("— Grimoire D1 —");
+// Le manifest D1 n'a que des icônes 96 px : seules les armes qui ont une carte du Grimoire (560×728) en tirent un
+// splash style D2 et restent dans le jeu ; les autres objets D1 (armures, armes sans carte) en sont retirés.
+// Exclusions : armes dont la couleur se confond avec le fond doré de la carte (détourage raté, revu à l'œil).
+var grimoireExclusions = JsonSerializer.Deserialize<string[]>(
+    File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Data", "d1-grimoire-exclusions.json")))!;
+using var grimoire = await bungie.GetD1GrimoireAsync(default);
+var grimoireCards = D1GrimoireCards.Map(grimoire, d1
+    .Where(m => m.Item.Category == ItemCategory.Weapon && !grimoireExclusions.Contains(m.Item.NameEn))
+    .Select(m => m.Item.NameEn));
+Console.WriteLine($"  {grimoireCards.Count} armes D1 avec carte haute résolution ({grimoireExclusions.Length} exclues)");
+
 Console.WriteLine("— Images —");
 var fetcher = new ImageFetcher(http, outputDir, hmacSecret, warn); // SEC-14 : images non JPEG/PNG signalées, non écrites
 var all = new List<Item>();
@@ -99,12 +111,17 @@ foreach (var m in d2)
     m.Item.IconFile = icon; m.Item.SplashFile = splash;
     all.Add(m.Item);
 }
+var grimoireSplashes = await fetcher.FetchGrimoireSplashesAsync(Game.D1, d1
+    .Where(m => grimoireCards.ContainsKey(m.Item.NameEn))
+    .ToDictionary(m => m.Item.BungieHash, m => grimoireCards[m.Item.NameEn]), default);
 foreach (var m in d1)
 {
-    var (icon, splash) = await fetcher.FetchAsync(Game.D1, m.Item.BungieHash, m.IconServerPath, null, default);
+    if (!grimoireSplashes.TryGetValue(m.Item.BungieHash, out var splash)) continue; // pas d'image haute résolution
+    var (icon, _) = await fetcher.FetchAsync(Game.D1, m.Item.BungieHash, m.IconServerPath, null, default);
     m.Item.IconFile = icon; m.Item.SplashFile = splash;
     all.Add(m.Item);
 }
+Console.WriteLine($"  {all.Count(i => i.Game == Game.D1)} exotiques D1 gardés sur {d1.Count} (image haute résolution)");
 
 Console.WriteLine("— Base —");
 DbWriter.Write(all, Path.Combine(outputDir, "destidle.db"));

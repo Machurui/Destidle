@@ -45,6 +45,10 @@ public sealed class BungieClient(HttpClient http)
         return result;
     }
 
+    /// <summary>Grimoire D1 complet (thèmes → pages → cartes, avec leurs images haute résolution).</summary>
+    public Task<JsonDocument> GetD1GrimoireAsync(CancellationToken ct) =>
+        GetJsonAsync("/d1/Platform/Destiny/Vanguard/Grimoire/Definition/", ct);
+
     public async Task DownloadToFileAsync(string serverRelativePath, string destinationFile, CancellationToken ct)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(destinationFile)!);

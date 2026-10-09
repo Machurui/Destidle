@@ -5,6 +5,9 @@ using System.Net.Http.Headers;
 using System.Text;
 using Destidle.Core;
 using Destidle.Importer;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Formats.Jpeg;
+using SixLabors.ImageSharp.PixelFormats;
 using Xunit;
 
 namespace Destidle.Tests;
@@ -155,6 +158,92 @@ public sealed class ImageFetcherTests : IDisposable
         Assert.Empty(Directory.Exists(Path.Combine(_dir, "icons")) ? Directory.GetFiles(Path.Combine(_dir, "icons")) : []);
         Assert.False(Directory.Exists(Path.Combine(_dir, "splash")));
         Assert.Empty(_warnings);
+    }
+
+    // ---- FetchGrimoireSplashesAsync (cartes du Grimoire D1, style D2) ----
+
+    /// <summary>Trois cartes, arme à des colonnes différentes : le fond commun se calcule sur toutes.</summary>
+    private static readonly Dictionary<long, GrimoireCardImage> Cards = new()
+    {
+        [11] = new("/common/destiny_content/grimoire/hr_images/a.jpg", 0, 0, 560, 728),
+        [12] = new("/common/destiny_content/grimoire/hr_images/b.jpg", 0, 0, 560, 728),
+        [13] = new("/common/destiny_content/grimoire/hr_images/c.jpg", 0, 0, 560, 728),
+    };
+
+    private static string GrimoireName(long hash) => "g" + ImageFetcher.OpaqueName(Secret, Game.D1, hash, ".jpg");
+
+    private void MapCards()
+    {
+        var lefts = new Dictionary<long, int> { [11] = 60, [12] = 226, [13] = 400 };
+        foreach (var (hash, card) in Cards)
+        {
+            using var img = D1GrimoireTests.Card(lefts[hash]);
+            using var ms = new MemoryStream();
+            img.SaveAsJpeg(ms, new JpegEncoder { Quality = 95 });
+            var bytes = ms.ToArray();
+            _handler.Map(card.SheetPath, () => Ok(bytes, "image/jpeg"));
+        }
+    }
+
+    [Fact]
+    public async Task FetchGrimoireSplashesAsync_WritesSquareSplashes_UnderTheirOwnNames()
+    {
+        MapCards();
+
+        var splashes = await NewFetcher().FetchGrimoireSplashesAsync(Game.D1, Cards, default);
+
+        // Nom distinct du splash « icône » (préfixe s) : l'ancien fichier n'est jamais réutilisé.
+        Assert.Equal(Cards.Keys.Order(), splashes.Keys.Order());
+        foreach (var (hash, name) in splashes)
+        {
+            Assert.Equal(GrimoireName(hash), name);
+            using var img = Image.Load(SplashFile(name));
+            Assert.Equal(img.Width, img.Height);
+        }
+        Assert.Empty(_warnings);
+    }
+
+    [Fact]
+    public async Task FetchGrimoireSplashesAsync_AllPresent_SkipsHttp()
+    {
+        Directory.CreateDirectory(Path.Combine(_dir, "splash"));
+        foreach (var hash in Cards.Keys) await File.WriteAllBytesAsync(SplashFile(GrimoireName(hash)), Jpeg);
+
+        var splashes = await NewFetcher().FetchGrimoireSplashesAsync(Game.D1, Cards, default);
+
+        Assert.Equal(3, splashes.Count);
+        Assert.Equal(0, _handler.Calls);
+    }
+
+    [Fact]
+    public async Task FetchGrimoireSplashesAsync_OneMissing_DownloadsAllCards_ButWritesOnlyTheMissingOne()
+    {
+        MapCards();
+        Directory.CreateDirectory(Path.Combine(_dir, "splash"));
+        await File.WriteAllBytesAsync(SplashFile(GrimoireName(11)), Jpeg);
+        await File.WriteAllBytesAsync(SplashFile(GrimoireName(12)), Jpeg);
+
+        var splashes = await NewFetcher().FetchGrimoireSplashesAsync(Game.D1, Cards, default);
+
+        Assert.Equal(3, splashes.Count);
+        Assert.Equal(3, _handler.Calls); // le fond commun a besoin de toutes les cartes
+        Assert.Equal(Jpeg, await File.ReadAllBytesAsync(SplashFile(GrimoireName(11))));
+        using var img = Image.Load(SplashFile(GrimoireName(13)));
+        Assert.Equal(img.Width, img.Height);
+    }
+
+    [Fact]
+    public async Task FetchGrimoireSplashesAsync_NonImage_WarnsAndLeavesThatWeaponOut()
+    {
+        // L'arme concernée garde son splash « icône » ; les autres sont produites.
+        MapCards();
+        _handler.Map(Cards[13].SheetPath, () => Ok(Html, "text/html"));
+
+        var splashes = await NewFetcher().FetchGrimoireSplashesAsync(Game.D1, Cards, default);
+
+        Assert.Equal([11L, 12L], splashes.Keys.Order());
+        Assert.Single(_warnings);
+        Assert.False(File.Exists(SplashFile(GrimoireName(13))));
     }
 
     // ---- Helpers ----

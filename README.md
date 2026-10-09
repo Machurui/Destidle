@@ -1,6 +1,6 @@
 # Destidle
 
-Jeu quotidien façon Loldle : deviner un exotique de Destiny 1 ou Destiny 2 en 8 essais au plus, dans deux catégories séparées (**Armes** et **Armures**). Chaque essai renvoie un retour par attribut et affine un visuel pixelisé ; un mode libre propose des parties illimitées. Le moteur de jeu tourne côté serveur : la réponse n'est jamais dans le bundle client.
+Jeu quotidien façon Loldle : deviner un exotique de Destiny 1 ou Destiny 2 en 8 essais au plus, dans deux catégories séparées (**Armes** et **Armures**, cette dernière limitée à D2). Chaque essai renvoie un retour par attribut et affine un visuel pixelisé ; un mode libre propose des parties illimitées. Le moteur de jeu tourne côté serveur : la réponse n'est jamais dans le bundle client.
 
 Conception de référence : [`docs/superpowers/specs/2026-07-16-destidle-design.md`](docs/superpowers/specs/2026-07-16-destidle-design.md).
 
@@ -31,6 +31,7 @@ dotnet run --project backend/Destidle.Importer
 ```
 
 - Résultat : `backend/Destidle.Api/AppData/` (`destidle.db`, `icons/`, `splash/`), ignoré par git. Pour écrire ailleurs : variable `Importer__OutputDir`.
+- Images des splashs : screenshot pour D2. Pour D1, le manifest n'a qu'une icône de 96 px : seules les armes qui ont une carte dans le Grimoire D1 restent dans le jeu, avec une image haute résolution tirée de la carte au style D2 (arme détourée, à l'horizontale, sur fond sombre). Les autres objets D1 sont retirés : toutes les armures, les armes sans carte et celles dont le détourage échoue (liste dans `backend/Destidle.Importer/Data/d1-grimoire-exclusions.json`). La catégorie Armures ne contient donc que des exotiques D2. Après un changement de ce rendu, supprimez les `splash/g*.jpg` avant de réimporter : les images déjà présentes ne sont pas régénérées.
 - Les variables d'environnement `Bungie__ApiKey` (ou `BUNGIE_API_KEY`) et `Game__HmacSecret` peuvent remplacer les user-secrets.
 - `Game:HmacSecret` sert ici à donner aux images des noms opaques (HMAC du hash Bungie), enregistrés en base. Sans lui, l'importer affiche un avertissement et les noms deviennent calculables. Vous pouvez reprendre la valeur de l'API, sans obligation : l'API lit les noms en base et ne les recalcule pas.
 - Changer ce secret renomme toutes les images et impose un réimport complet. Videz `icons/` et `splash/` dans le dossier de sortie avant, pour ne pas conserver les anciens fichiers.
