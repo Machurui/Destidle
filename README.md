@@ -132,7 +132,7 @@ Les données (base, images Bungie, key ring) vivent sur le volume `destidle-data
 
 ### Première mise en route
 
-1. Manifestes (namespace `destidle`, volume, Deployment, Service, ServiceAccount `destidle-deployer` et ses droits), avec un compte administrateur :
+1. Manifestes (namespace `destidle`, volume, Deployment, Service, Ingress, ServiceAccount `destidle-deployer` et ses droits), avec un compte administrateur :
 
    ```bash
    kubectl apply -k deploy/k8s
@@ -150,7 +150,7 @@ Les données (base, images Bungie, key ring) vivent sur le volume `destidle-data
 4. Premier push sur `main` (ou lancement manuel de **Deploy**). Les images sont publiées, mais le pod reste **non prêt** tant qu'aucun import n'a eu lieu : la base est vide, la sonde `/api/items` répond 500, et l'étape `rollout status` de ce tout premier déploiement échoue au bout de 5 minutes. C'est attendu.
 5. Paquets GHCR : vérifiez qu'ils sont **publics** (paramètres de chaque paquet sur GitHub). Sinon, le pod reste en `ImagePullBackOff` : rendez-les publics ou ajoutez un `imagePullSecrets` au Deployment et au Job.
 6. Lancez **Import data**. Le pod redémarre avec les données et devient prêt.
-7. Cloudflare Zero Trust : ajoutez au tunnel le nom d'hôte public vers `http://destidle.destidle.svc.cluster.local:80`. Restreignez ensuite `AllowedHosts` à ce domaine **en gardant `localhost`** : `AllowedHosts=<domaine>;localhost`. La sonde de disponibilité envoie `Host: localhost` ; sans lui, elle reçoit 400 et le pod sort du Service (site coupé). La variable est prête en commentaire dans `deploy/k8s/deployment.yaml` : décommentez-la, remplacez `<domaine>`, puis `kubectl apply -k deploy/k8s`.
+7. Cloudflare Zero Trust : dans le tunnel, ajoutez le nom d'hôte public `destidle.machurui.com`, de type HTTPS vers `127.0.0.1:443` : Traefik, avec la même cible et les mêmes paramètres d'origine que les autres applications du tunnel (en général « Aucune vérification TLS », Traefik présentant son certificat par défaut). L'Ingress `deploy/k8s/ingress.yaml` route ce domaine vers le Service. Pour un autre domaine, changez-le dans `ingress.yaml` et dans `AllowedHosts` (`deploy/k8s/deployment.yaml`), **en gardant `localhost`** : la sonde de disponibilité envoie `Host: localhost` ; sans lui, elle reçoit 400 et le pod sort du Service (site coupé). Puis `kubectl apply -k deploy/k8s`.
 
 ### Sécurité du runner
 
@@ -160,7 +160,7 @@ Le dépôt est public et le runner `deploy` pilote le cluster : tout code exécu
 - **Pull requests externes** : Settings → Actions → General, rubrique d'approbation des workflows de pull requests venues de forks : « Require approval for all external contributors » (ou l'option la plus stricte proposée). Une pull request venue d'un fork peut apporter son propre workflow qui cible l'étiquette `deploy` : approuver son exécution revient à lancer son code sur le runner. Lisez d'abord ses changements sous `.github/`.
 - **Déclencheurs** : n'ajoutez jamais `pull_request` ni `pull_request_target` aux workflows de ce dépôt. Le code d'une pull request ne doit atteindre ni le runner `deploy` ni l'environnement `production`.
 - **Environnement `production`** : Settings → Environments → `production`, « Deployment branches and tags » limité à `main`. Les workflows vérifient aussi la branche : publication, livraison et import ne tournent que depuis `main`.
-- **Kubeconfig dédié** : le kubeconfig actuel du runner a des droits larges. `deploy/k8s/deployer-rbac.yaml` crée le ServiceAccount `destidle-deployer`, limité au namespace `destidle` et aux commandes des workflows (redémarrer et mettre à l'échelle le Deployment, lancer et supprimer le Job, lire pods, journaux et événements). Il ne lit pas les Secrets directement, mais il crée des Jobs et modifie le Deployment : du code malveillant sur le runner pourrait encore, par ce biais, lire les Secrets du namespace (clé Bungie, secret HMAC), voire lancer un pod privilégié tant que le namespace n'impose pas de Pod Security. Ce kubeconfig réduit les dégâts ; il ne remplace pas les réglages ci-dessus.
+- **Kubeconfig dédié** : le kubeconfig actuel du runner a des droits larges. `deploy/k8s/deployer-rbac.yaml` crée le ServiceAccount `destidle-deployer`, limité au namespace `destidle` et aux commandes des workflows (redémarrer et mettre à l'échelle le Deployment, lancer et supprimer le Job, lire pods, journaux et événements). Il ne lit pas les Secrets directement, mais il crée des Jobs et modifie le Deployment : du code malveillant sur le runner pourrait encore, par ce biais, lire les Secrets du namespace (clé Bungie, secret HMAC). Il ne peut pas lancer de pod privilégié : le namespace impose la Pod Security `restricted`. Ce kubeconfig réduit les dégâts ; il ne remplace pas les réglages ci-dessus.
 
 Kubeconfig du ServiceAccount, sur l'hôte du runner, sous l'utilisateur `github-runner` (sans `sudo` : `su - github-runner -s /bin/bash` depuis root), après l'étape 1. Les chemins sont écrits en dur : une variable vide ferait écrire `kubectl` dans le kubeconfig actuel.
 

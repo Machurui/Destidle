@@ -39,10 +39,10 @@ spec:
                 secretKeyRef:
                   name: destidle-secrets
                   key: Game__HmacSecret
-            # Après l'exposition par le tunnel (README, étape 7) : hôtes autorisés. Garder localhost,
-            # en-tête Host de la sonde de disponibilité, sinon elle reçoit 400 et le pod sort du Service.
-            # - name: AllowedHosts
-            #   value: "<domaine>;localhost"
+            # Hôtes autorisés. Garder localhost, en-tête Host de la sonde de disponibilité,
+            # sinon elle reçoit 400 et le pod sort du Service.
+            - name: AllowedHosts
+              value: "destidle.machurui.com;localhost"
           volumeMounts:
             - name: data
               mountPath: /data

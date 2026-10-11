@@ -1,4 +1,9 @@
+# Pod Security « restricted » : refuse tout pod privilégié ou root dans le namespace,
+# y compris lancé par le compte de déploiement. Le jeu et l'importer s'y conforment.
 apiVersion: v1
 kind: Namespace
 metadata:
   name: destidle
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/warn: restricted

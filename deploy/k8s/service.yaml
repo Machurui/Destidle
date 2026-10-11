@@ -1,5 +1,4 @@
-# Interne au cluster ; le Cloudflare Tunnel route le domaine public vers
-# http://destidle.destidle.svc.cluster.local:80
+# Interne au cluster ; exposé par l'Ingress (ingress.yaml).
 apiVersion: v1
 kind: Service
 metadata:

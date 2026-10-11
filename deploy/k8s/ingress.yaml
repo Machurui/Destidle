@@ -1,0 +1,21 @@
+# Domaine public : le Cloudflare Tunnel envoie destidle.machurui.com à Traefik (Ingress de k3s),
+# comme les autres applications du cluster ; Traefik route vers le Service selon l'en-tête Host.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: destidle
+  labels:
+    app.kubernetes.io/name: destidle
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: destidle.machurui.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: destidle
+                port:
+                  name: http
