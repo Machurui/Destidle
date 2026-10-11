@@ -2,6 +2,8 @@
 /**
  * Top bar (CT-05): brand + three switches (category, mode, locale).
  *
+ * The brand is the Orbite logo: the tab icon (public/favicon.svg) followed by the wordmark.
+ *
  * `disabled` freezes the category/mode switches while a request is in flight
  * (review reservation d). The locale switch is never disabled: changing the
  * language has no effect on the game state. Clicking the already-active value
@@ -24,8 +26,8 @@ const { t, locale } = useI18n()
 <template>
   <header class="topbar">
     <div class="brand">
-      <span class="brand-mark">◈</span>
-      <span class="brand-name">DESTIDLE</span>
+      <img class="brand-mark" src="/favicon.svg" alt="" width="36" height="36" />
+      <span class="brand-name">destidle</span>
       <span class="brand-sub">{{ t('brand.sub') }}</span>
     </div>
     <div class="switches">

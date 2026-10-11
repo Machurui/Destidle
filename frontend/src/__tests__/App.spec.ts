@@ -201,7 +201,7 @@ describe('App shell', () => {
   })
 
   it('renders the brand name', () => {
-    expect(mountApp().find('.brand-name').text()).toContain('DESTIDLE')
+    expect(mountApp().find('.brand-name').text()).toBe('destidle')
   })
 
   it('shows only the loading placeholder while the first puzzle loads', () => {

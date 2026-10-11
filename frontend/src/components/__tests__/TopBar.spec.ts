@@ -40,8 +40,12 @@ describe('TopBar', () => {
 
   it('renders the brand with the localized subtitle', () => {
     const wrapper = mountBar()
-    expect(wrapper.find('.brand-mark').text()).toBe('◈')
-    expect(wrapper.find('.brand-name').text()).toContain('DESTIDLE')
+    const mark = wrapper.find('img.brand-mark')
+    // Decorative: the same file as the tab icon, hidden from assistive technology (the name follows).
+    // The build keeps /favicon.svg; Vitest inlines that public file as a data URI.
+    expect(mark.attributes('src')).toMatch(/^(\/favicon\.svg|data:image\/svg\+xml,)/)
+    expect(mark.attributes('alt')).toBe('')
+    expect(wrapper.find('.brand-name').text()).toBe('destidle')
     expect(wrapper.find('.brand-sub').text()).toBe('// RECON EXOTIQUE')
   })
 

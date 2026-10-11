@@ -20,6 +20,9 @@
   --color-danger: #ff7a90;
   --font-sans: "Space Grotesk", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", monospace;
+  /* Logo (Orbite): gold mark on black, cream wordmark. The interface keeps --color-accent. */
+  --font-brand: "Chakra Petch", var(--font-sans);
+  --color-brand-ink: #f2eee4;
 }
 
 html, body { margin: 0; padding: 0; background: var(--color-bg); color: var(--color-ink); font-family: var(--font-sans); }
@@ -43,9 +46,9 @@ body::before {
 
 /* ===== Topbar ===== */
 .topbar { display: flex; align-items: center; justify-content: space-between; padding-bottom: 18px; border-bottom: 1px solid var(--color-line); margin-bottom: 22px; gap: 12px; flex-wrap: wrap; }
-.brand { display: flex; align-items: baseline; gap: 12px; }
-.brand-mark { font-size: 24px; color: var(--color-accent); text-shadow: 0 0 18px color-mix(in oklab, var(--color-accent) 50%, transparent); }
-.brand-name { font-family: var(--font-mono); font-weight: 700; font-size: 22px; letter-spacing: 0.18em; }
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand-mark { display: block; flex: none; width: 36px; height: 36px; border-radius: 8px; }
+.brand-name { font-family: var(--font-brand); font-weight: 600; font-size: 24px; line-height: 1; letter-spacing: 0.03em; color: var(--color-brand-ink); }
 .brand-sub { font-family: var(--font-mono); font-size: 11px; color: var(--color-ink-mute); letter-spacing: 0.18em; }
 .switches { display: flex; gap: 10px; flex-wrap: wrap; }
 .mode-switch { display: flex; gap: 0; border: 1px solid var(--color-line); border-radius: 2px; background: var(--color-bg2); }
