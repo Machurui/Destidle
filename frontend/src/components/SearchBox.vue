@@ -8,7 +8,8 @@
  * order, and the active row goes back to the first one on every query change;
  * when the list shrinks without a keystroke (`usedIds` / `items` change) the
  * active row is clamped to its last row.
- * Keyboard: ArrowDown/ArrowUp move the active row (clamped), Enter picks it
+ * Keyboard: ArrowDown/ArrowUp move the active row (clamped) and scroll the list
+ * (never the page) just enough to show it, as does a query change; Enter picks it
  * while the list is shown (after Escape it reopens the list instead of picking
  * an item the user no longer sees), Escape closes the list. The list opens on
  * input or focus and closes on blur, Escape or pick. The dropdown swallows
@@ -16,7 +17,7 @@
  * pick emits the item id and clears the query. Plain ARIA combobox/listbox
  * wiring, ids from `useId()`.
  */
-import { computed, ref, useId, watch } from 'vue'
+import { computed, nextTick, ref, useId, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { Category, ItemSummary } from '@/lib/api'
 import { norm } from '@/lib/normalize'
@@ -35,6 +36,7 @@ const q = ref('')
 const open = ref(false)
 const activeIdx = ref(0)
 const listId = useId()
+const listEl = ref<HTMLElement | null>(null)
 
 const matches = computed<ItemSummary[]>(() => {
   const nq = norm(q.value)
@@ -49,7 +51,14 @@ const matches = computed<ItemSummary[]>(() => {
   }
   return out
 })
-watch(q, () => (activeIdx.value = 0), { flush: 'sync' })
+watch(
+  q,
+  () => {
+    activeIdx.value = 0
+    nextTick(revealActive)
+  },
+  { flush: 'sync' },
+)
 /** Keeps a row highlighted, and Enter on a visible item, when the list shrinks. */
 watch(
   () => matches.value.length,
@@ -83,6 +92,18 @@ function move(delta: number) {
   const last = matches.value.length - 1
   if (last < 0) return
   activeIdx.value = Math.min(last, Math.max(0, activeIdx.value + delta))
+  nextTick(revealActive)
+}
+
+/** Scrolls the list (offsetParent of its rows) just enough to show the active row. */
+function revealActive() {
+  const list = listEl.value
+  const row = list?.children[activeIdx.value] as HTMLElement | undefined
+  if (!list || !row) return
+  const top = row.offsetTop
+  const bottom = top + row.offsetHeight
+  if (top < list.scrollTop) list.scrollTop = top
+  else if (bottom > list.scrollTop + list.clientHeight) list.scrollTop = bottom - list.clientHeight
 }
 
 function submit(i: ItemSummary | undefined) {
@@ -140,7 +161,7 @@ function onKey(e: KeyboardEvent) {
       />
       <span class="search-hint">{{ t('search.enter') }}</span>
     </div>
-    <div v-if="expanded" :id="listId" class="dropdown" role="listbox" @mousedown.prevent>
+    <div v-if="expanded" :id="listId" ref="listEl" class="dropdown" role="listbox" @mousedown.prevent>
       <div
         v-for="(m, i) in matches"
         :id="optionId(m.id)"

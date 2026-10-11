@@ -145,6 +145,40 @@ describe('SearchBox', () => {
     expect(rows.filter(r => r.classes().includes('active'))).toHaveLength(1)
   })
 
+  it('scrolls only the list to keep the arrow-selected row visible, back to the top on a new query', async () => {
+    const list = Array.from({ length: 8 }, (_, i) => item(i + 1, `Cannon ${i + 1}`))
+    const w = mountWith(list)
+    const input = w.find('input')
+    await input.setValue('c')
+    const dropdown = w.find('.dropdown').element as HTMLElement
+    // jsdom has no layout: 8 rows of 50 px in a list that shows 120 px.
+    Object.defineProperty(dropdown, 'clientHeight', { configurable: true, value: 120 })
+    w.findAll('.dd-item').forEach((r, i) => {
+      Object.defineProperty(r.element, 'offsetTop', { configurable: true, value: i * 50 })
+      Object.defineProperty(r.element, 'offsetHeight', { configurable: true, value: 50 })
+    })
+    const press = async (k: string, times = 1) => {
+      for (let i = 0; i < times; i++) await input.trigger('keydown', key(k))
+      await nextTick()
+    }
+    expect(dropdown.scrollTop).toBe(0)
+    await press('ArrowDown') // row 1 (50–100) already visible
+    expect(dropdown.scrollTop).toBe(0)
+    await press('ArrowDown') // row 2 (100–150): its bottom edge aligns with the list's
+    expect(dropdown.scrollTop).toBe(30)
+    await press('ArrowDown', 5) // last row (350–400)
+    expect(dropdown.scrollTop).toBe(280)
+    await press('ArrowUp') // row 6 (300–350) still visible in 280–400
+    expect(dropdown.scrollTop).toBe(280)
+    await press('ArrowUp', 6) // row 0: its top edge aligns with the list's
+    expect(dropdown.scrollTop).toBe(0)
+    await press('ArrowDown', 7)
+    expect(dropdown.scrollTop).toBe(280)
+    await input.setValue('ca') // new query: the active row goes back to the first one
+    await nextTick()
+    expect(dropdown.scrollTop).toBe(0)
+  })
+
   it('prevents the default of ArrowDown, ArrowUp and Enter (no caret move, no form submit)', async () => {
     const w = make()
     const input = w.find('input')
