@@ -1,0 +1,15 @@
+# Interne au cluster ; le Cloudflare Tunnel route le domaine public vers
+# http://destidle.destidle.svc.cluster.local:80
+apiVersion: v1
+kind: Service
+metadata:
+  name: destidle
+  labels:
+    app.kubernetes.io/name: destidle
+spec:
+  selector:
+    app.kubernetes.io/name: destidle
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

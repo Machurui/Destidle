@@ -1,0 +1,81 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: destidle
+  labels:
+    app.kubernetes.io/name: destidle
+spec:
+  replicas: 1
+  # Recreate : l'ancien pod s'arrête avant que le nouveau démarre, jamais deux pods sur /data.
+  # ReadWriteOnce limite le volume à un nœud, pas à un pod : il ne garantit pas cette exclusion.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: destidle
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: destidle
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1654
+        runAsGroup: 1654
+        fsGroup: 1654
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: destidle
+          # latest + Always : le rollout restart de la livraison tire la nouvelle image.
+          image: ghcr.io/machurui/destidle:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: Game__HmacSecret
+              valueFrom:
+                secretKeyRef:
+                  name: destidle-secrets
+                  key: Game__HmacSecret
+            # Après l'exposition par le tunnel (README, étape 7) : hôtes autorisés. Garder localhost,
+            # en-tête Host de la sonde de disponibilité, sinon elle reçoit 400 et le pod sort du Service.
+            # - name: AllowedHosts
+            #   value: "<domaine>;localhost"
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          # Vie : le processus répond. Disponibilité : la base répond (pas prêt avant le premier import,
+          # sans boucle de redémarrage).
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /api/items?category=weapon
+              port: http
+              # Host fixe (sinon l'IP du pod) : la sonde passe le filtre AllowedHosts.
+              httpHeaders:
+                - name: Host
+                  value: localhost
+            timeoutSeconds: 3
+            periodSeconds: 10
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: destidle-data

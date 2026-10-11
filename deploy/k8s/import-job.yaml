@@ -1,0 +1,59 @@
+# Lancé par le workflow « Import data » (kubectl apply -n <namespace> -f), pod de jeu arrêté.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: destidle-import
+  labels:
+    app.kubernetes.io/name: destidle-import
+spec:
+  backoffLimit: 0
+  # 25 min, attente Pending comprise : le Job s'arrête avant la fin de l'attente du workflow (30 min).
+  activeDeadlineSeconds: 1500
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: destidle-import
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1654
+        runAsGroup: 1654
+        fsGroup: 1654
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: importer
+          image: ghcr.io/machurui/destidle-importer:latest
+          imagePullPolicy: Always
+          env:
+            - name: Bungie__ApiKey
+              valueFrom:
+                secretKeyRef:
+                  name: destidle-secrets
+                  key: Bungie__ApiKey
+            # Même secret que l'API : noms opaques des images.
+            - name: Game__HmacSecret
+              valueFrom:
+                secretKeyRef:
+                  name: destidle-secrets
+                  key: Game__HmacSecret
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: 100m
+              memory: 2Gi
+            limits:
+              memory: 4Gi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: destidle-data

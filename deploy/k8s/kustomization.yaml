@@ -1,0 +1,13 @@
+# Appliquer (compte administrateur) : kubectl apply -k deploy/k8s
+# À refaire après toute modification : la livraison ne fait que redémarrer le pod.
+# Le Secret destidle-secrets est créé à la main (README), jamais versionné.
+# Le Job d'import (import-job.yaml) n'est pas listé : il est lancé par le workflow « Import data ».
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: destidle
+resources:
+  - namespace.yaml
+  - pvc.yaml
+  - deployment.yaml
+  - service.yaml
+  - deployer-rbac.yaml

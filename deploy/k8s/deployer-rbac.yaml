@@ -1,0 +1,57 @@
+# Identité des workflows Deploy et Import data (kubeconfig dédié du runner, README « Sécurité du runner »).
+# Droits limités au namespace et aux seules commandes des workflows ; aucun accès direct aux Secrets
+# (créer un Job ou modifier le Deployment y donne un accès indirect : README).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: destidle-deployer
+  labels:
+    app.kubernetes.io/name: destidle-deployer
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: destidle-deployer
+  labels:
+    app.kubernetes.io/name: destidle-deployer
+rules:
+  # rollout restart (patch), rollout status (get, list, watch), contrôle d'accès (get).
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch", "patch"]
+  # scale --replicas.
+  - apiGroups: ["apps"]
+    resources: ["deployments/scale"]
+    verbs: ["get", "patch", "update"]
+  - apiGroups: ["apps"]
+    resources: ["replicasets"]
+    verbs: ["get", "list", "watch"]
+  # Attente d'arrêt du jeu, état du pod d'import, logs job/…, diagnostic d'échec.
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["list"]
+  # apply d'un Job absent (get + create), attente du Job, delete --cascade=foreground (delete, puis list + watch).
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: destidle-deployer
+  labels:
+    app.kubernetes.io/name: destidle-deployer
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: destidle-deployer
+subjects:
+  - kind: ServiceAccount
+    name: destidle-deployer
+    namespace: destidle

@@ -109,7 +109,7 @@ dotnet publish backend/Destidle.Api -c Release -o backend/artifacts/publish -p:D
 | `Assets__Dir` | recommandé | Dossier des données : `destidle.db`, `icons/`, `splash/` (produits par l'importer, ou copie de `AppData/`) et `keys/`. Par défaut : `AppData/` sous la racine de contenu (le répertoire courant). |
 | `Database__Path` | non | Chemin de la base. Par défaut : `<Assets__Dir>/destidle.db`. L'importer écrit toujours `<OutputDir>/destidle.db`. |
 | `Urls` | non | Adresses d'écoute. Par défaut : `http://localhost:5058` (boucle locale uniquement ; dans un conteneur, écoutez sur `0.0.0.0`). **`ASPNETCORE_URLS` reste sans effet**, car la clé `Urls` d'`appsettings.json` la masque : utilisez la variable `Urls` ou l'option `--urls`. |
-| `AllowedHosts` | recommandé | `*` par défaut ; restreignez-la au(x) domaine(s) public(s). |
+| `AllowedHosts` | recommandé | `*` par défaut ; restreignez-la au(x) domaine(s) public(s), séparés par `;`. Le filtre s'applique à toute requête, sondes comprises : gardez `localhost` si une sonde passe par là. Sous Kubernetes, `<domaine>;localhost` (voir « Déploiement Kubernetes »). |
 
 - **Key ring `<Assets__Dir>/keys/`** : persistez-le entre les déploiements (volume), sauvegardez-le et restreignez ses droits (`chmod 700`), car les clés y sont stockées en XML non chiffré. S'il est perdu, les tokens des parties en cours deviennent illisibles (410) et le front repart sur un nouveau token. La base et les images, elles, se régénèrent avec l'importer.
 - **Core dumps** : un refus de démarrage se termine par un abort. Désactivez les core dumps sur l'hôte (`LimitCORE=0` sous systemd, ou `ulimit -c 0`).
@@ -123,6 +123,116 @@ dotnet publish backend/Destidle.Api -c Release -o backend/artifacts/publish -p:D
 - **Sonde de santé** : `curl -fsI 'http://localhost:5058/api/items?category=weapon'` (HEAD → 200 sans corps ; exécute une requête SQL).
 - **Base absente** (import non lancé, `Assets__Dir` ou `Database__Path` erroné) : l'API démarre quand même, crée un `destidle.db` vide (0 octet) et répond 500 sur les routes de jeu comme sur la sonde ; le journal contient `SqliteException … no such table: Items`. Lancez l'importer ou corrigez le chemin, puis supprimez le fichier vide s'il reste.
 - **.NET 8 arrive en fin de support le 2026-11-10** : planifiez la migration vers .NET 10 (LTS).
+
+## Déploiement Kubernetes
+
+Chaque push sur `main` qui touche le code lance le workflow **Deploy** (`.github/workflows/deploy.yml`) : tests backend et front, publication des images `ghcr.io/machurui/destidle` (API + SPA) et `ghcr.io/machurui/destidle-importer` (tags `latest` et `sha-…`), puis redémarrage du déploiement depuis le runner auto-hébergé (étiquette `deploy`). Le pod tire alors la nouvelle image (`latest`, `imagePullPolicy: Always`). Un push limité à `README.md`, `LICENSE` ou `.gitignore` ne déploie rien. Le workflow se lance aussi à la main depuis l'onglet Actions : sur une autre branche que `main`, il s'arrête après les tests (ni image, ni tag `latest`, ni redémarrage).
+
+Les données (base, images Bungie, key ring) vivent sur le volume `destidle-data`, monté sur `/data`. Le workflow manuel **Import data** (`.github/workflows/import-data.yml`, depuis `main`) arrête le pod, lance le Job importer (`deploy/k8s/import-job.yaml`), puis relance le pod, même si l'import échoue (l'ancienne base est alors conservée). Avant la relance, un Job inachevé (en échec, en attente ou encore en cours) est supprimé : l'importer ne tourne jamais sous le jeu. Son journal reste dans celui du workflow.
+
+### Première mise en route
+
+1. Manifestes (namespace `destidle`, volume, Deployment, Service, ServiceAccount `destidle-deployer` et ses droits), avec un compte administrateur :
+
+   ```bash
+   kubectl apply -k deploy/k8s
+   ```
+
+2. Secret (valeurs à remplacer ; le même secret HMAC sert à l'API et à l'importer) :
+
+   ```bash
+   kubectl -n destidle create secret generic destidle-secrets \
+     --from-literal=Game__HmacSecret="$(openssl rand -base64 32)" \
+     --from-literal=Bungie__ApiKey="<clé Bungie>"
+   ```
+
+3. GitHub, dans les paramètres du dépôt : environnement `production`, variables `K8S_NAMESPACE=destidle` et `DESTIDLE_DEPLOYMENT=destidle` (au niveau du dépôt ou de l'environnement `production`). Le runner `deploy` lit `/home/github-runner/.kube/config`, ou le fichier désigné par la variable `KUBECONFIG_PATH`. Avant le premier push, appliquez « Sécurité du runner » (section suivante).
+4. Premier push sur `main` (ou lancement manuel de **Deploy**). Les images sont publiées, mais le pod reste **non prêt** tant qu'aucun import n'a eu lieu : la base est vide, la sonde `/api/items` répond 500, et l'étape `rollout status` de ce tout premier déploiement échoue au bout de 5 minutes. C'est attendu.
+5. Paquets GHCR : vérifiez qu'ils sont **publics** (paramètres de chaque paquet sur GitHub). Sinon, le pod reste en `ImagePullBackOff` : rendez-les publics ou ajoutez un `imagePullSecrets` au Deployment et au Job.
+6. Lancez **Import data**. Le pod redémarre avec les données et devient prêt.
+7. Cloudflare Zero Trust : ajoutez au tunnel le nom d'hôte public vers `http://destidle.destidle.svc.cluster.local:80`. Restreignez ensuite `AllowedHosts` à ce domaine **en gardant `localhost`** : `AllowedHosts=<domaine>;localhost`. La sonde de disponibilité envoie `Host: localhost` ; sans lui, elle reçoit 400 et le pod sort du Service (site coupé). La variable est prête en commentaire dans `deploy/k8s/deployment.yaml` : décommentez-la, remplacez `<domaine>`, puis `kubectl apply -k deploy/k8s`.
+
+### Sécurité du runner
+
+Le dépôt est public et le runner `deploy` pilote le cluster : tout code exécuté sur ce runner agit sur la production. Ce risque vaut pour tout dépôt public qui utilise ce runner. Ces réglages restent à faire à la main.
+
+- **Runner** : enregistrez-le pour ce dépôt seulement (Settings → Actions → Runners). Préférez un runner éphémère (`./config.sh --ephemeral`, réenregistré après chaque job) : il repart d'un état propre.
+- **Pull requests externes** : Settings → Actions → General, rubrique d'approbation des workflows de pull requests venues de forks : « Require approval for all external contributors » (ou l'option la plus stricte proposée). Une pull request venue d'un fork peut apporter son propre workflow qui cible l'étiquette `deploy` : approuver son exécution revient à lancer son code sur le runner. Lisez d'abord ses changements sous `.github/`.
+- **Déclencheurs** : n'ajoutez jamais `pull_request` ni `pull_request_target` aux workflows de ce dépôt. Le code d'une pull request ne doit atteindre ni le runner `deploy` ni l'environnement `production`.
+- **Environnement `production`** : Settings → Environments → `production`, « Deployment branches and tags » limité à `main`. Les workflows vérifient aussi la branche : publication, livraison et import ne tournent que depuis `main`.
+- **Kubeconfig dédié** : le kubeconfig actuel du runner a des droits larges. `deploy/k8s/deployer-rbac.yaml` crée le ServiceAccount `destidle-deployer`, limité au namespace `destidle` et aux commandes des workflows (redémarrer et mettre à l'échelle le Deployment, lancer et supprimer le Job, lire pods, journaux et événements). Il ne lit pas les Secrets directement, mais il crée des Jobs et modifie le Deployment : du code malveillant sur le runner pourrait encore, par ce biais, lire les Secrets du namespace (clé Bungie, secret HMAC), voire lancer un pod privilégié tant que le namespace n'impose pas de Pod Security. Ce kubeconfig réduit les dégâts ; il ne remplace pas les réglages ci-dessus.
+
+Kubeconfig du ServiceAccount, sur l'hôte du runner, sous l'utilisateur `github-runner` (sans `sudo` : `su - github-runner -s /bin/bash` depuis root), après l'étape 1. Les chemins sont écrits en dur : une variable vide ferait écrire `kubectl` dans le kubeconfig actuel.
+
+0. Sauvegarde du kubeconfig actuel, et kubeconfig de ce shell (le `kubectl` de k3s lit sinon `/etc/rancher/k3s/k3s.yaml`, réservé à root ; ne le rendez pas lisible) :
+
+   ```bash
+   cp -p /home/github-runner/.kube/config /home/github-runner/.kube/config.bak
+   export KUBECONFIG=/home/github-runner/.kube/config
+   kubectl -n destidle get serviceaccount destidle-deployer
+   ```
+
+1. Jeton longue durée du ServiceAccount. Le cluster le remplit en quelques secondes ; ne l'affichez pas.
+
+   ```bash
+   kubectl apply -f - <<'YAML'
+   apiVersion: v1
+   kind: Secret
+   metadata:
+     name: destidle-deployer-token
+     namespace: destidle
+     annotations:
+       kubernetes.io/service-account.name: destidle-deployer
+   type: kubernetes.io/service-account-token
+   YAML
+   kubectl -n destidle get secret destidle-deployer-token -o jsonpath='{.data.token}' | grep -q . && echo "jeton prêt"
+   ```
+
+2. Kubeconfig dédié. `--server` est l'URL directe de l'API du cluster : `https://127.0.0.1:6443` quand k3s tourne sur l'hôte du runner, sinon `https://<nœud>:6443`. Le jeton et `ca.crt` sont ceux du cluster : l'URL Rancher (`…/k8s/clusters/…`) refuse ce jeton.
+
+   ```bash
+   kubectl -n destidle get secret destidle-deployer-token -o jsonpath='{.data.ca\.crt}' | base64 -d > /home/github-runner/.kube/destidle-ca.tmp
+   token=$(kubectl -n destidle get secret destidle-deployer-token -o jsonpath='{.data.token}' | base64 -d)
+   kubectl --kubeconfig=/home/github-runner/.kube/destidle-deployer config set-cluster destidle \
+     --server=https://127.0.0.1:6443 \
+     --certificate-authority=/home/github-runner/.kube/destidle-ca.tmp --embed-certs=true
+   kubectl --kubeconfig=/home/github-runner/.kube/destidle-deployer config set-credentials destidle-deployer --token="$token"
+   kubectl --kubeconfig=/home/github-runner/.kube/destidle-deployer config set-context destidle \
+     --cluster=destidle --user=destidle-deployer --namespace=destidle
+   kubectl --kubeconfig=/home/github-runner/.kube/destidle-deployer config use-context destidle
+   chmod 600 /home/github-runner/.kube/destidle-deployer
+   rm -f /home/github-runner/.kube/destidle-ca.tmp
+   unset token
+   ```
+
+3. Contrôle : « config d'origine intacte », puis `yes` et `no`.
+
+   ```bash
+   cmp /home/github-runner/.kube/config /home/github-runner/.kube/config.bak && echo "config d'origine intacte"
+   kubectl --kubeconfig=/home/github-runner/.kube/destidle-deployer -n destidle auth can-i patch deployment/destidle
+   kubectl --kubeconfig=/home/github-runner/.kube/destidle-deployer -n destidle auth can-i get secrets
+   ```
+
+4. GitHub : variable `KUBECONFIG_PATH=/home/github-runner/.kube/destidle-deployer` (dépôt ou environnement `production`). Les deux workflows la lisent ; sans elle, ils gardent `/home/github-runner/.kube/config`. Retirez ensuite le kubeconfig large du runner si aucun autre dépôt ne s'en sert.
+
+### Exploitation
+
+- **Réimport saisonnier** : lancez **Import data** juste après minuit (heure de Paris), pour la même raison qu'en local (voir « Import des données ») : un pool modifié change la cible du jour. Le site est indisponible pendant l'import : le pod de jeu est arrêté (`scale 0`) pour laisser l'importer seul sur le volume. `ReadWriteOnce` limite le volume à un nœud, pas à un pod : l'exclusion vient de cet arrêt et de la suppression du Job inachevé avant la relance.
+- **Mémoire de l'import** : le Job importer réserve 2 Gi de mémoire et peut monter jusqu'à 4 Gi (pic mesuré vers 1,8 Gi ; en dessous de 3 Gi de limite, l'import échoue faute de mémoire). Le nœud doit avoir ces 2 Gi libres pendant l'import.
+- **Manifestes** : la livraison ne fait que redémarrer le pod. Toute modification de `deploy/k8s/` (hors `import-job.yaml`, appliqué à chaque import) s'applique à la main, avec un compte administrateur (le ServiceAccount `destidle-deployer` n'en a pas les droits) :
+
+  ```bash
+  kubectl apply -k deploy/k8s
+  ```
+
+- **File d'attente** : **Deploy** et **Import data** partagent le groupe de concurrence `destidle-production`, sans annulation de l'exécution en cours. GitHub n'y garde qu'une exécution en attente : un import en file peut être remplacé par un déploiement plus récent. Vérifiez qu'il a tourné, sinon relancez-le.
+- **Version déployée** : le tag `latest` ne dit pas quelle version tourne ; lisez le digest de l'image du pod, à comparer aux tags `sha-…` de GHCR :
+
+  ```bash
+  kubectl -n destidle get pod -l app.kubernetes.io/name=destidle -o jsonpath='{.items[0].status.containerStatuses[0].imageID}'
+  ```
+
+- **Key ring** : il est sur le volume. Sauvegardez le volume ; s'il est perdu, les parties en cours repartent sur un nouveau token (410).
 
 ## API
 

@@ -1,0 +1,152 @@
+name: Import data
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  import:
+    name: Import Bungie data
+    # Production depuis main seulement (README « Sécurité du runner »).
+    if: github.ref == 'refs/heads/main'
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+      - deploy
+    environment: production
+
+    env:
+      # Kubeconfig dédié via la variable KUBECONFIG_PATH (README « Sécurité du runner »).
+      KUBECONFIG: ${{ vars.KUBECONFIG_PATH || '/home/github-runner/.kube/config' }}
+      NAMESPACE: ${{ vars.K8S_NAMESPACE }}
+      DEPLOYMENT: ${{ vars.DESTIDLE_DEPLOYMENT }}
+
+    # Même verrou que la livraison : un import et un déploiement ne se chevauchent jamais.
+    concurrency:
+      group: destidle-production
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check configuration
+        id: config
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -z "${NAMESPACE:-}" ]; then
+            echo "::error::K8S_NAMESPACE est vide."
+            exit 1
+          fi
+
+          if [ -z "${DEPLOYMENT:-}" ]; then
+            echo "::error::DESTIDLE_DEPLOYMENT est vide."
+            exit 1
+          fi
+
+          kubectl -n "$NAMESPACE" get "deployment/$DEPLOYMENT"
+
+      - name: Stop the game
+        shell: bash
+        run: |
+          set -euo pipefail
+          # La base est remplacée pendant l'import : le pod de jeu est arrêté. ReadWriteOnce limite le volume
+          # à un nœud, pas à un pod : l'exclusion vient de ce scale 0 et de la suppression du Job avant la relance.
+          kubectl -n "$NAMESPACE" scale "deployment/$DEPLOYMENT" --replicas=0
+          for _ in $(seq 1 60); do
+            # Sortie capturée puis testée : un échec de kubectl arrête l'étape au lieu de passer pour « plus de pod ».
+            # Pods terminés (Failed, Succeeded) ignorés : leurs conteneurs ne tournent plus.
+            pods=$(kubectl -n "$NAMESPACE" get pods -l app.kubernetes.io/name=destidle \
+              --field-selector=status.phase!=Failed,status.phase!=Succeeded -o name)
+            if [ -z "$pods" ]; then exit 0; fi
+            sleep 2
+          done
+          echo "::error::Le pod de jeu ne s'est pas arrêté en 2 minutes."
+          kubectl -n "$NAMESPACE" get pods -l app.kubernetes.io/name=destidle || true
+          exit 1
+
+      - name: Run importer
+        shell: bash
+        run: |
+          set -euo pipefail
+          kubectl -n "$NAMESPACE" delete job destidle-import --ignore-not-found --cascade=foreground
+          kubectl -n "$NAMESPACE" apply -f deploy/k8s/import-job.yaml
+
+          # Le Job s'arrête seul au bout de 25 min (activeDeadlineSeconds), avant la fin de cette attente.
+          result=timeout
+          for _ in $(seq 1 180); do
+            # Lecture du Job en échec (API indisponible un instant) : nouvel essai au tour suivant.
+            if ! conditions=$(kubectl -n "$NAMESPACE" get job destidle-import \
+              -o jsonpath='{range .status.conditions[?(@.status=="True")]}{.type}{" "}{end}'); then
+              echo "::warning::Lecture du Job impossible, nouvel essai dans 10 s."
+              sleep 10
+              continue
+            fi
+            case " $conditions " in
+              *" Complete "*) result=ok; break ;;
+              *" Failed "*) result=failed; break ;;
+            esac
+
+            # Pod bloqué avant le démarrage (Secret incomplet, image introuvable) : échec immédiat.
+            reason=$(kubectl -n "$NAMESPACE" get pods -l app.kubernetes.io/name=destidle-import \
+              -o jsonpath='{.items[*].status.containerStatuses[*].state.waiting.reason}') || reason=""
+            case " $reason " in
+              *" CreateContainerConfigError "* | *" ErrImagePull "* | *" ImagePullBackOff "*)
+                result="pod d'import bloqué : $reason"
+                break
+                ;;
+            esac
+            sleep 10
+          done
+
+          kubectl -n "$NAMESPACE" logs job/destidle-import --tail=200 || true
+
+          if [ "$result" != "ok" ]; then
+            echo "::error::Import en échec ($result). L'ancienne base est conservée."
+            exit 1
+          fi
+
+      - name: Remove unfinished import job
+        # Avant la relance : un Job en attente, mal configuré ou encore en cours ne doit jamais tourner
+        # sous le jeu relancé. Un Job terminé (Complete) reste 24 h pour son journal.
+        if: always() && steps.config.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          complete=$(kubectl -n "$NAMESPACE" get job destidle-import --ignore-not-found \
+            -o jsonpath='{.status.conditions[?(@.type=="Complete")].status}') || complete=""
+          if [ "$complete" = "True" ]; then exit 0; fi
+
+          for attempt in 1 2 3; do
+            if kubectl -n "$NAMESPACE" delete job destidle-import --ignore-not-found \
+              --cascade=foreground --timeout=2m; then
+              exit 0
+            fi
+            echo "::warning::Suppression du Job d'import en échec (essai $attempt/3)."
+            sleep 5
+          done
+          echo "::error::Job d'import non supprimé : supprimez-le à la main (kubectl -n $NAMESPACE delete job destidle-import)."
+          exit 1
+
+      - name: Restart the game
+        # Toujours, même si l'import échoue : le jeu repart sur la base existante.
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          kubectl -n "$NAMESPACE" scale "deployment/$DEPLOYMENT" --replicas=1
+          kubectl -n "$NAMESPACE" rollout status "deployment/$DEPLOYMENT" --timeout=5m
+
+      - name: Show pods and recent events
+        # Diagnostic d'un échec, limité au namespace (aucune valeur secrète dans ces sorties).
+        if: failure() && steps.config.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          kubectl -n "$NAMESPACE" get pods || true
+          kubectl -n "$NAMESPACE" get events --sort-by=.metadata.creationTimestamp | tail -n 20 || true
