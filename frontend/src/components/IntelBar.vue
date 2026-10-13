@@ -1,8 +1,8 @@
 <script setup lang="ts">
 /**
  * Briefing line + counters (CT-05, spec §8). The daily number and the streak
- * are daily-only stats: the puzzle number shows when it is known, the streak
- * never shows in free mode.
+ * are dated-puzzle stats: the puzzle number shows in daily and archive mode
+ * when it is known, the streak in daily mode only (archive wins do not count).
  */
 import { useI18n } from 'vue-i18n'
 import type { Category, Mode } from '@/lib/api'
@@ -26,7 +26,7 @@ const { t } = useI18n()
       <span class="intel-text">{{ category === 'weapon' ? t('intel.briefingWeapon') : t('intel.briefingArmor') }}</span>
     </div>
     <div class="intel-stats">
-      <div v-if="mode === 'daily' && dailyNumber !== undefined" class="stat">
+      <div v-if="mode !== 'free' && dailyNumber !== undefined" class="stat">
         <span class="stat-k">{{ t('intel.day') }}</span><span class="stat-v">#{{ dailyNumber }}</span>
       </div>
       <div class="stat"><span class="stat-k">{{ t('intel.guesses') }}</span><span class="stat-v">{{ guessCount }} / {{ max }}</span></div>

@@ -213,4 +213,13 @@ public class GameApiEmptyDbQaTests : IClassFixture<EmptyDbApiFactory>
         Assert.Equal(HttpStatusCode.ServiceUnavailable, resp.StatusCode);
         Assert.Equal("application/problem+json", resp.Content.Headers.ContentType?.MediaType);
     }
+
+    [Fact]
+    public async Task Archive_EmptyDb_Is503Problem()
+    {
+        // Horloge réelle (pas de FakeTimeProvider ici) : le jour du lancement est passé.
+        var resp = await _client.GetAsync("/api/game/archive?category=weapon&date=2026-07-16");
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, resp.StatusCode);
+        Assert.Equal("application/problem+json", resp.Content.Headers.ContentType?.MediaType);
+    }
 }

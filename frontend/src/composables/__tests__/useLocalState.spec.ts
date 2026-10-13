@@ -11,7 +11,7 @@ import type { StoredBoard } from '../useLocalState'
 import {
   STORAGE_KEY,
   boardKey,
-  clearDailyBoards,
+  loadDailyBoards,
   getStreak,
   loadBoard,
   recordDailyWin,
@@ -181,48 +181,37 @@ describe('saveBoard / loadBoard', () => {
   })
 })
 
-describe('clearDailyBoards', () => {
-  it('removes the other daily boards of the category and keeps everything else', () => {
-    saveBoard(boardKey('daily', 'weapon', '2026-07-16'), board({ token: 'old' }))
-    saveBoard(boardKey('daily', 'weapon', '2026-07-17'), board({ token: 'keep' }))
-    saveBoard(boardKey('daily', 'armor', '2026-07-16'), board({ token: 'armor' }))
+describe('boardKey for the archive', () => {
+  it('shares the daily key of the same date', () => {
+    expect(boardKey('archive', 'weapon', '2026-07-17')).toBe('daily|weapon|2026-07-17')
+    expect(boardKey('archive', 'armor', '2026-07-16')).toBe(boardKey('daily', 'armor', '2026-07-16'))
+  })
+})
+
+describe('loadDailyBoards', () => {
+  it('returns the daily boards of the category keyed by date, and nothing else', () => {
+    saveBoard(boardKey('daily', 'weapon', '2026-07-16'), board({ token: 'w16' }))
+    saveBoard(boardKey('daily', 'weapon', '2026-07-17'), board({ token: 'w17' }))
+    saveBoard(boardKey('daily', 'armor', '2026-07-16'), board({ token: 'a16' }))
     saveBoard(boardKey('free', 'weapon'), board({ token: 'free' }))
 
-    clearDailyBoards('weapon', '2026-07-17')
-
-    expect(loadBoard(boardKey('daily', 'weapon', '2026-07-16'))).toBeNull()
-    expect(loadBoard(boardKey('daily', 'weapon', '2026-07-17'))?.token).toBe('keep')
-    expect(loadBoard(boardKey('daily', 'armor', '2026-07-16'))?.token).toBe('armor')
-    expect(loadBoard(boardKey('free', 'weapon'))?.token).toBe('free')
+    const boards = loadDailyBoards('weapon')
+    expect(Object.keys(boards).sort()).toEqual(['2026-07-16', '2026-07-17'])
+    expect(boards['2026-07-16']?.token).toBe('w16')
+    expect(boards['2026-07-17']?.token).toBe('w17')
+    expect(loadDailyBoards('armor')['2026-07-16']?.token).toBe('a16')
   })
 
-  it('removes several stale daily boards at once', () => {
-    saveBoard(boardKey('daily', 'armor', '2026-07-14'), board({ token: 'a' }))
-    saveBoard(boardKey('daily', 'armor', '2026-07-15'), board({ token: 'b' }))
-    saveBoard(boardKey('daily', 'armor', '2026-07-16'), board({ token: 'c' }))
-    clearDailyBoards('armor', '2026-07-16')
-    const store = rawStore() as { boards: Record<string, unknown> }
-    expect(Object.keys(store.boards)).toEqual(['daily|armor|2026-07-16'])
-  })
-
-  it('is a no-op when there is nothing to remove', () => {
-    saveBoard(boardKey('daily', 'weapon', '2026-07-17'), board({ token: 'keep' }))
-    const before = localStorage.getItem(STORAGE_KEY)
-    expect(() => clearDailyBoards('weapon', '2026-07-17')).not.toThrow()
-    expect(localStorage.getItem(STORAGE_KEY)).toBe(before)
-    expect(() => clearDailyBoards('armor', '2026-07-17')).not.toThrow()
-  })
-
-  it('does not throw on empty storage', () => {
-    expect(() => clearDailyBoards('weapon', '2026-07-17')).not.toThrow()
+  it('returns an empty record on empty storage without writing', () => {
+    expect(loadDailyBoards('weapon')).toEqual({})
     expect(localStorage.getItem(STORAGE_KEY)).toBeNull()
   })
 
-  it('does not keep a stale board when keepDate differs from the stored date', () => {
-    saveBoard(boardKey('daily', 'weapon', '2026-07-16'), board({ token: 'old', date: '2026-07-16' }))
-    clearDailyBoards('weapon', '2026-07-17')
-    expect(loadBoard(boardKey('daily', 'weapon', '2026-07-16'))).toBeNull()
-    expect(loadBoard(boardKey('daily', 'weapon', '2026-07-17'))).toBeNull()
+  it('keeps the boards of previous days (nothing is purged any more)', () => {
+    saveBoard(boardKey('daily', 'weapon', '2026-07-14'), board({ token: 'a' }))
+    saveBoard(boardKey('daily', 'weapon', '2026-07-15'), board({ token: 'b' }))
+    saveBoard(boardKey('daily', 'weapon', '2026-07-16'), board({ token: 'c' }))
+    expect(Object.keys(loadDailyBoards('weapon')).sort()).toEqual(['2026-07-14', '2026-07-15', '2026-07-16'])
   })
 })
 
@@ -258,7 +247,8 @@ describe('corrupted storage (REQ-015: silent reset)', () => {
     expect(loadBoard(key)).toBeNull()
     expect(() => getStreak('weapon')).not.toThrow()
     expect(getStreak('weapon')).toBe(0)
-    expect(() => clearDailyBoards('weapon', '2026-07-16')).not.toThrow()
+    expect(() => loadDailyBoards('weapon')).not.toThrow()
+    expect(loadDailyBoards('weapon')).toEqual({})
 
     // storage keeps working afterwards
     const b = board({ token: 'after', guesses: [guess(1)] })
@@ -909,6 +899,7 @@ describe('corrupted storage (REQ-015: silent reset)', () => {
     expect(() => loadBoard('free|weapon')).not.toThrow()
     expect(loadBoard('free|weapon')).toBeNull()
     expect(getStreak('weapon')).toBe(0)
+    expect(loadDailyBoards('weapon')).toEqual({})
     expectSilent()
   })
 
@@ -919,7 +910,7 @@ describe('corrupted storage (REQ-015: silent reset)', () => {
     expect(() => saveBoard('free|weapon', board())).not.toThrow()
     expect(() => recordDailyWin('weapon', '2026-07-16')).not.toThrow()
     expect(recordDailyWin('weapon', '2026-07-16')).toBe(1)
-    expect(() => clearDailyBoards('weapon', '2026-07-16')).not.toThrow()
+    expect(() => loadDailyBoards('weapon')).not.toThrow()
     expect(localStorage.getItem(STORAGE_KEY)).toBeNull()
     expectSilent()
   })

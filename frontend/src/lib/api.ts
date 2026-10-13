@@ -11,7 +11,7 @@
  */
 
 export type Category = 'weapon' | 'armor'
-export type Mode = 'daily' | 'free'
+export type Mode = 'daily' | 'free' | 'archive'
 export type Game = 'D1' | 'D2'
 export type MatchKind = 'hit' | 'near' | 'miss'
 
@@ -146,6 +146,11 @@ export const api = {
     request<ItemSummary[]>(`/api/items?category=${encodeURIComponent(category)}`),
   daily: (category: Category) =>
     request<DailyInfo>(`/api/game/daily?category=${encodeURIComponent(category)}`),
+  /** Past daily puzzle: `date` from the launch day to yesterday (Europe/Paris), same target as that day. */
+  archive: (category: Category, date: string) =>
+    request<DailyInfo>(
+      `/api/game/archive?category=${encodeURIComponent(category)}&date=${encodeURIComponent(date)}`,
+    ),
   free: (category: Category) => request<FreeInfo>('/api/game/free', post({ category })),
   guess: (puzzleToken: string, itemId: number) =>
     request<GuessResult>('/api/game/guess', post({ puzzleToken, itemId })),

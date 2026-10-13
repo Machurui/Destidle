@@ -19,11 +19,18 @@
  * and exposes the error. Free: a 410 means the stored token is dead, so a
  * new free game starts; any other failure commits the board and exposes it.
  *
+ * Archive mode (spec archive §4): with `archiveDate === null` the screen is
+ * the list of past days (`archiveDays`, built from today's daily info and the
+ * stored boards, no board loaded); `openArchiveDay(date)` loads that day from
+ * `/api/game/archive` under the daily key of its date, so a day played live
+ * opens as it was left and a finished day stays frozen. Archive wins never
+ * touch the streak; a 410 reloads the same day.
+ *
  * Error model (DEC-006): any `ApiError` is exposed in `error` (status 0 =
  * unreachable API) and the caller decides how to display it; a 410 during
  * `submitGuess` (raised by the guess or by the reveal that follows the last
  * guess) means the puzzle token is unusable, so the token is dropped and a
- * fresh puzzle is fetched (daily → `init()`, free → `newFree()`). 400 / 404
+ * fresh puzzle is fetched (daily → `init()`, archive → `init()` on the same day, free → `newFree()`). 400 / 404
  * / 5xx never refetch. Non-API exceptions are programming errors and are
  * rethrown untouched.
  */
@@ -33,13 +40,15 @@ import { api, ApiError } from '@/lib/api'
 import type { Category, DailyInfo, GuessResult, ItemSummary, Mode } from '@/lib/api'
 import {
   boardKey,
-  clearDailyBoards,
   getStreak,
   loadBoard,
+  loadDailyBoards,
   recordDailyWin,
   saveBoard,
 } from './useLocalState'
 import type { BoardStatus, StoredBoard } from './useLocalState'
+import { buildArchiveDays } from './archiveDays'
+import type { ArchiveDay } from './archiveDays'
 
 export const MAX_GUESSES = 8
 /** Sharpest splash level (only requested once the game is over). */
@@ -52,7 +61,7 @@ export interface UseGame {
   mode: Ref<Mode>
   items: Ref<ItemSummary[]>
   board: Ref<StoredBoard | null>
-  /** Daily puzzle info; `null` in free mode. */
+  /** Daily or archive-day puzzle info; `null` in free mode and on the archive list. */
   daily: Ref<DailyInfo | null>
   /** Last unrecovered API error; `status === 0` means the API is unreachable. */
   error: Ref<ApiError | null>
@@ -61,6 +70,10 @@ export interface UseGame {
   /** True while a guess is being submitted. */
   submitting: Ref<boolean>
   streak: Ref<number>
+  /** Archive mode: date of the opened day; `null` while the list of days is shown. */
+  archiveDate: Ref<string | null>
+  /** Archive mode: past puzzles of the category, newest first; empty outside the list. */
+  archiveDays: Ref<ArchiveDay[]>
   status: ComputedRef<GameStatus>
   guesses: ComputedRef<GuessResult[]>
   usedIds: ComputedRef<Set<number>>
@@ -75,6 +88,10 @@ export interface UseGame {
   submitGuess(itemId: number): Promise<void>
   /** Free mode only: fetches a new random target and starts a blank board. */
   newFree(): Promise<void>
+  /** Archive mode only: opens the board of a past day. */
+  openArchiveDay(date: string): Promise<void>
+  /** Archive mode only: back from a day to the list of days. */
+  closeArchiveDay(): Promise<void>
   MAX_GUESSES: number
 }
 
@@ -100,6 +117,8 @@ export function useGame(): UseGame {
   const loading = ref(false)
   const submitting = ref(false)
   const streak = ref(0)
+  const archiveDate = ref<string | null>(null)
+  const archiveDays = shallowRef<ArchiveDay[]>([])
 
   const status = computed<GameStatus>(() => board.value?.status ?? 'playing')
   const guesses = computed<GuessResult[]>(() => board.value?.guesses ?? [])
@@ -121,7 +140,7 @@ export function useGame(): UseGame {
    * resolving after a context switch must not touch the displayed state.
    */
   let sequence = 0
-  /** `${mode}|${category}` of the last puzzle committed by `init()`; `null` before the first one. */
+  /** `${mode}|${category}|${archive date}` of the last screen committed by `init()`; `null` before the first one. */
   let loadedContext: string | null = null
 
   function commit(key: string, next: StoredBoard): void {
@@ -161,18 +180,29 @@ export function useGame(): UseGame {
     return { token: info.puzzleToken, guesses: [], status: 'playing' }
   }
 
-  async function loadDaily(cat: Category): Promise<LoadedPuzzle> {
-    const info = await api.daily(cat)
-    clearDailyBoards(cat, info.date)
-    const key = boardKey('daily', cat, info.date)
+  /**
+   * Board of a dated puzzle (daily or archive day). A stored board keeps its
+   * guesses (the target of a date is deterministic) but takes the token and
+   * number the server just issued: the stored token may have become
+   * unreadable (RISK-005 / DEC-006) or be the dead daily token of a past day.
+   */
+  function restoreDated(key: string, info: DailyInfo): StoredBoard {
     const existing = loadBoard(key)
-    // A stored board keeps its guesses (the target of a date is deterministic)
-    // but takes the token/number the server just issued: the stored token may
-    // have become unreadable (RISK-005 / DEC-006).
-    const restored: StoredBoard = existing
+    return existing
       ? { ...existing, token: info.puzzleToken, number: info.number }
       : { token: info.puzzleToken, date: info.date, number: info.number, guesses: [], status: 'playing' }
-    return { key, daily: info, streak: getStreak(cat, info.date), ...(await ensureRevealed(restored)) }
+  }
+
+  async function loadDaily(cat: Category): Promise<LoadedPuzzle> {
+    const info = await api.daily(cat)
+    const key = boardKey('daily', cat, info.date)
+    return { key, daily: info, streak: getStreak(cat, info.date), ...(await ensureRevealed(restoreDated(key, info))) }
+  }
+
+  async function loadArchive(cat: Category, date: string): Promise<LoadedPuzzle> {
+    const info = await api.archive(cat, date)
+    const key = boardKey('archive', cat, info.date)
+    return { key, daily: info, streak: 0, ...(await ensureRevealed(restoreDated(key, info))) }
   }
 
   async function loadFree(cat: Category): Promise<LoadedPuzzle> {
@@ -193,7 +223,9 @@ export function useGame(): UseGame {
     const seq = ++sequence
     const cat = category.value
     const currentMode = mode.value
-    const context = `${currentMode}|${cat}`
+    // Archive mode: `null` = the list of days, otherwise the opened day.
+    const day = currentMode === 'archive' ? archiveDate.value : null
+    const context = `${currentMode}|${cat}|${day ?? ''}`
     if (context !== loadedContext) {
       // Never show the previous context's state under the new tab, even if
       // the load below fails.
@@ -201,12 +233,26 @@ export function useGame(): UseGame {
       daily.value = null
       items.value = []
       streak.value = 0
+      archiveDays.value = []
     }
     loading.value = true
     error.value = null
     try {
+      if (currentMode === 'archive' && day === null) {
+        // The list needs today's date and number only; no board, no pool.
+        const today = await api.daily(cat)
+        if (seq !== sequence) return
+        archiveDays.value = buildArchiveDays(today.date, today.number, loadDailyBoards(cat))
+        loadedContext = context
+        return
+      }
       const pool = await api.items(cat)
-      const puzzle = currentMode === 'daily' ? await loadDaily(cat) : await loadFree(cat)
+      const puzzle =
+        day !== null
+          ? await loadArchive(cat, day)
+          : currentMode === 'daily'
+            ? await loadDaily(cat)
+            : await loadFree(cat)
       if (seq !== sequence) return
       items.value = pool
       daily.value = puzzle.daily
@@ -288,11 +334,11 @@ export function useGame(): UseGame {
       // has its own board (and error state) from `init()` / `newFree()`.
       if (seq !== sequence) return
       if (e.status === 410) {
-        // Unusable token (DEC-006): drop it and fetch the current puzzle. In
-        // daily mode the server returns today's token; when the date changed
-        // the board starts blank.
-        if (currentMode === 'daily') await init()
-        else await newFree()
+        // Unusable token (DEC-006): drop it and fetch the puzzle again. Daily:
+        // the server returns today's token (a blank board when the date
+        // changed); archive: the same day again; free: a new game.
+        if (currentMode === 'free') await newFree()
+        else await init()
       } else {
         error.value = e
       }
@@ -304,12 +350,31 @@ export function useGame(): UseGame {
   async function setCategory(c: Category): Promise<void> {
     if (c === category.value) return
     category.value = c
+    // Archive: the other category's list, never the same date over there.
+    archiveDate.value = null
     await init()
   }
 
   async function setMode(m: Mode): Promise<void> {
-    if (m === mode.value) return
+    if (m === mode.value) {
+      // Clicking the active archive tab on an open day goes back to the list.
+      if (m === 'archive') await closeArchiveDay()
+      return
+    }
     mode.value = m
+    archiveDate.value = null
+    await init()
+  }
+
+  async function openArchiveDay(date: string): Promise<void> {
+    if (mode.value !== 'archive') return
+    archiveDate.value = date
+    await init()
+  }
+
+  async function closeArchiveDay(): Promise<void> {
+    if (mode.value !== 'archive' || archiveDate.value === null) return
+    archiveDate.value = null
     await init()
   }
 
@@ -323,6 +388,8 @@ export function useGame(): UseGame {
     loading,
     submitting,
     streak,
+    archiveDate,
+    archiveDays,
     status,
     guesses,
     usedIds,
@@ -335,6 +402,8 @@ export function useGame(): UseGame {
     setMode,
     submitGuess,
     newFree,
+    openArchiveDay,
+    closeArchiveDay,
     MAX_GUESSES,
   }
 }

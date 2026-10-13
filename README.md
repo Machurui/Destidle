@@ -1,6 +1,6 @@
 # Destidle
 
-Jeu quotidien façon Loldle : deviner un exotique de Destiny 1 ou Destiny 2 en 8 essais au plus, dans deux catégories séparées (**Armes** et **Armures**, cette dernière limitée à D2). Chaque essai renvoie un retour par attribut et affine un visuel pixelisé ; un mode libre propose des parties illimitées. Le moteur de jeu tourne côté serveur : la réponse n'est jamais dans le bundle client.
+Jeu quotidien façon Loldle : deviner un exotique de Destiny 1 ou Destiny 2 en 8 essais au plus, dans deux catégories séparées (**Armes** et **Armures**, cette dernière limitée à D2). Chaque essai renvoie un retour par attribut et affine un visuel pixelisé ; un mode libre propose des parties illimitées, et l'**archive** permet de rejouer les défis quotidiens passés de chaque catégorie, une fois chacun (un seul essai par jour ; un jour déjà joué, en direct ou depuis l'archive, affiche son plateau figé). Le moteur de jeu tourne côté serveur : la réponse n'est jamais dans le bundle client.
 
 | Dossier | Contenu |
 |---|---|
@@ -35,7 +35,7 @@ dotnet run --project backend/Destidle.Importer
 - Changer ce secret renomme toutes les images et impose un réimport complet. Videz `icons/` et `splash/` dans le dossier de sortie avant, pour ne pas conserver les anciens fichiers.
 - Codes de sortie : `1` si la clé Bungie manque ; `2` si des exotiques D1 n'ont pas d'ère (complétez `backend/Destidle.Importer/Data/d1-eras.json`, puis relancez). `dotnet run --project backend/Destidle.Importer -- --report-d1` vérifie les ères sans télécharger d'images ni écrire la base.
 - **Réimportez à chaque saison** avec la même commande. La base est écrite dans `destidle.db.tmp`, puis renommée ; les images déjà présentes ne sont pas retéléchargées. Le remplacement de la base pendant que l'API tourne n'a pas été vérifié : arrêtez l'API, importez, puis relancez-la.
-- Le défi du jour est un index dans le pool (HMAC de la date modulo le nombre d'items). Un import qui ajoute ou retire des items peut donc changer la cible du jour, tout comme un changement du secret `Game__HmacSecret` de l'API. Un joueur qui recharge la page, change d'onglet ou reçoit un 410 (cible disparue) obtient alors le nouveau défi et garde ses essais déjà joués, dont les retours portaient sur l'ancienne cible. Réimportez donc juste après minuit (heure de Paris), API arrêtée, avant les premières parties.
+- Le défi du jour est un index dans le pool (HMAC de la date modulo le nombre d'items). Un import qui ajoute ou retire des items peut donc changer la cible du jour, ainsi que celle des jours passés rejoués depuis l'archive (recalculée avec le pool courant), tout comme un changement du secret `Game__HmacSecret` de l'API. Un joueur qui recharge la page, change d'onglet ou reçoit un 410 (cible disparue) obtient alors le nouveau défi et garde ses essais déjà joués, dont les retours portaient sur l'ancienne cible. Réimportez donc juste après minuit (heure de Paris), API arrêtée, avant les premières parties.
 
 ## Développement
 
@@ -243,6 +243,7 @@ Toutes les routes sont publiques et anonymes. Les erreurs sont renvoyées au for
 | `GET /api/items?category=weapon\|armor` | liste pour l'autocomplétion, sans attribut révélateur | `[{ id, nameEn, nameFr, game, typeEn, typeFr, iconUrl }]` |
 | `GET /api/icons/{file}` | icône (nom opaque) | image, `Cache-Control: public, max-age=86400` |
 | `GET /api/game/daily?category=…` | défi du jour (Europe/Paris) | `{ puzzleToken, date, number }` |
+| `GET /api/game/archive?category=…&date=yyyy-MM-dd` | défi d'un jour passé (du lancement à la veille, Europe/Paris), même cible que le défi du jour de cette date | `{ puzzleToken, date, number }` |
 | `POST /api/game/free` `{ category }` | partie libre, cible aléatoire | `{ puzzleToken }` |
 | `POST /api/game/guess` `{ puzzleToken, itemId }` | essai | `{ correct, guess, feedback }` (`hit`/`near`/`miss`, saison `{ kind, dir }`) |
 | `POST /api/game/reveal` `{ puzzleToken }` | révèle la cible | `{ item }` |
@@ -251,16 +252,16 @@ Toutes les routes sont publiques et anonymes. Les erreurs sont renvoyées au for
 
 Règle des statuts :
 
-- **400** : erreur de forme (catégorie invalide, JSON invalide, token absent ou de plus de 512 caractères, `level` hors 0..9).
-- **410** : token bien formé mais inutilisable (illisible, défi d'un autre jour, cible disparue après réimport). Le client jette le token et en redemande un.
-- **404** : item inconnu, d'une autre catégorie ou `itemId` absent ; image absente ; route inconnue sous `/api` (jamais de HTML).
+- **400** : erreur de forme (catégorie invalide, JSON invalide, token absent ou de plus de 512 caractères, `level` hors 0..9, `date` absente ou hors format `yyyy-MM-dd` pour l'archive).
+- **410** : token bien formé mais inutilisable (illisible, défi du jour d'un autre jour (un token d'archive, lui, n'expire pas avec le jour), cible disparue après réimport). Le client jette le token et en redemande un.
+- **404** : item inconnu, d'une autre catégorie ou `itemId` absent ; image absente ; aucun défi d'archive pour cette date (avant le lancement, aujourd'hui ou plus tard) ; route inconnue sous `/api` (jamais de HTML).
 - **405** : mauvaise méthode, avec l'en-tête `Allow`.
-- **503** : base sans item de la catégorie (`daily`, `free`) : lancez l'importer. Fichier de base absent : 500 (voir « Base absente » en Production).
+- **503** : base sans item de la catégorie (`daily`, `free`, `archive`) : lancez l'importer. Fichier de base absent : 500 (voir « Base absente » en Production).
 
 ## Limites v1 et hors périmètre
 
 - Hors périmètre v1 : comptes et statistiques globales, classements, armes et armures légendaires, modes supplémentaires (citation de lore, indice de perk), PWA/mobile, tests E2E Playwright, limitation de débit.
-- Pas d'**historique** des parties : seuls le plateau courant de chaque contexte (catégorie × mode) et la série de victoires sont conservés dans le `localStorage`.
+- Le `localStorage` conserve le plateau libre de chaque catégorie, chaque plateau quotidien (un par catégorie et par date, gardé après son jour : l'archive les affiche et les reprend) et la série de victoires. Le stockage n'est jamais purgé : environ 3 Ko par jour joué et par catégorie. Si le quota du navigateur est atteint, la persistance s'arrête silencieusement mais le jeu continue de fonctionner.
 - « Copier le résultat » n'existe qu'en cas de victoire.
 - `reveal` peut être appelé à tout moment (se spoiler reste possible, comme dans Wordle ou Loldle) ; le serveur n'impose ni le nombre d'essais ni un débit.
 - Les données sont figées entre deux imports.

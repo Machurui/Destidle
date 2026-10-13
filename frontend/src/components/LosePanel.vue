@@ -3,8 +3,9 @@
  * Defeat panel (REQ-012, CT-05): "// TARGET ESCAPED" and the revealed
  * target with its meta line. No share text in defeat (out of the Task 16
  * scope). The "retry" button is the only user entry point of `newFree()`
- * (review reservation c), exists in free mode only, and `busy` disables it
- * while a request is in flight (review reservation d).
+ * (review reservation c) and exists in free mode only; in archive mode a
+ * "← ARCHIVE" button (`back`) returns to the list of days. `busy` disables
+ * both while a request is in flight (review reservation d).
  *
  * SEC-F8: `target.lightGgUrl` may come back from localStorage unchanged, so
  * the link is only rendered for an absolute `https://www.light.gg/` URL.
@@ -15,7 +16,7 @@ import type { ItemDisplay, Mode } from '@/lib/api'
 import ElementBadge from './ElementBadge.vue'
 
 const props = defineProps<{ target: ItemDisplay; mode: Mode; busy?: boolean }>()
-const emit = defineEmits<{ (e: 'new-game'): void }>()
+const emit = defineEmits<{ (e: 'new-game'): void; (e: 'back'): void }>()
 const { t, locale } = useI18n()
 
 const L = (en: string | null, fr: string | null) => (locale.value === 'fr' ? fr : en) ?? ''
@@ -55,13 +56,22 @@ function safeLightGgUrl(url: string | null): string | null {
     </div>
     <div class="win-actions">
       <button
-        v-if="mode !== 'daily'"
+        v-if="mode === 'free'"
         type="button"
         class="btn primary"
         :disabled="busy"
         @click="emit('new-game')"
       >
         {{ t('lose.retry') }}
+      </button>
+      <button
+        v-else-if="mode === 'archive'"
+        type="button"
+        class="btn primary"
+        :disabled="busy"
+        @click="emit('back')"
+      >
+        {{ t('archive.back') }}
       </button>
     </div>
   </div>

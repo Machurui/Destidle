@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MAX_GUESSES, MAX_SPLASH_LEVEL, useGame } from '../useGame'
-import { STORAGE_KEY } from '../useLocalState'
+import { STORAGE_KEY, getStreak } from '../useLocalState'
 import type { StoredBoard } from '../useLocalState'
 import type { GuessResult, ItemSummary } from '@/lib/api'
 
@@ -304,7 +304,7 @@ describe('useGame — daily mode', () => {
     expect(storedBoards()['daily|weapon|2026-07-16']?.token).toBe('tok1b')
   })
 
-  it('a date change starts a blank board and drops the previous day', async () => {
+  it('a date change starts a blank board and keeps the previous day for the archive', async () => {
     mockFetch(weaponDaily({ '/api/game/guess': guessResult(1, false) }))
     const g1 = useGame()
     await g1.init()
@@ -324,7 +324,7 @@ describe('useGame — daily mode', () => {
     })
     expect(g2.guesses.value).toHaveLength(0)
     const boards = storedBoards()
-    expect(boards['daily|weapon|2026-07-16']).toBeUndefined()
+    expect(boards['daily|weapon|2026-07-16']?.guesses).toHaveLength(1)
     expect(boards['daily|weapon|2026-07-17']).toBeDefined()
   })
 
@@ -1306,5 +1306,298 @@ describe('useGame — guess in flight during a context switch (reviewer C1)', ()
     expect(g.guesses.value.map((r) => r.guess.id)).toEqual([1])
     expect(g.board.value?.token).toBe('tok1')
     expect(g.splashLevel.value).toBe(1)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Archive mode (spec archive §4). "Today" is 2026-07-20 (puzzle #5): the
+// archive lists #4 (2026-07-19) down to #1 (2026-07-16).
+// ---------------------------------------------------------------------------
+
+const DAILY_5 = { puzzleToken: 'tok5', date: '2026-07-20', number: 5 }
+
+/** `/api/game/archive` answer for the `date` of the URL: token `arc-<date>`, number from the launch day. */
+function archiveAnswer(url: string) {
+  const date = new URL(url, 'http://localhost').searchParams.get('date') ?? ''
+  return { puzzleToken: `arc-${date}`, date, number: Number(date.slice(8)) - 15 }
+}
+
+const archiveRoutes = (extra: Routes = {}): Routes => ({
+  '/api/items': [item(1, 'Sunshot'), item(2, 'Gjallarhorn')],
+  '/api/game/daily': DAILY_5,
+  '/api/game/archive': (_body: JsonBody, url: string) => archiveAnswer(url),
+  ...extra,
+})
+
+const dated = (date: string, number: number, extra: Partial<StoredBoard> = {}): StoredBoard => ({
+  token: `d-${date}`,
+  date,
+  number,
+  guesses: [],
+  status: 'playing',
+  ...extra,
+})
+
+describe('useGame — archive mode', () => {
+  it('setMode(archive) lists the past days of the category, newest first, without a board', async () => {
+    mockFetch(archiveRoutes())
+    const g = useGame()
+    await g.setMode('archive')
+
+    expect(g.mode.value).toBe('archive')
+    expect(g.archiveDate.value).toBeNull()
+    expect(g.board.value).toBeNull()
+    expect(g.daily.value).toBeNull()
+    expect(g.loading.value).toBe(false)
+    expect(g.archiveDays.value).toEqual([
+      { date: '2026-07-19', number: 4, status: 'new', guessCount: 0 },
+      { date: '2026-07-18', number: 3, status: 'new', guessCount: 0 },
+      { date: '2026-07-17', number: 2, status: 'new', guessCount: 0 },
+      { date: '2026-07-16', number: 1, status: 'new', guessCount: 0 },
+    ])
+    expect(fetchCalls('/api/game/daily')[0]![0]).toBe('/api/game/daily?category=weapon')
+    expect(fetchCalls('/api/game/archive')).toHaveLength(0)
+  })
+
+  it('the list shows the stored result of each day of the category, live or archive', async () => {
+    seedBoards({
+      'daily|weapon|2026-07-19': dated('2026-07-19', 4, {
+        guesses: [guessResult(1, false), guessResult(2, true)],
+        status: 'won',
+      }),
+      'daily|weapon|2026-07-18': lostBoard('d18', { date: '2026-07-18', number: 3, revealed: REVEALED }),
+      'daily|weapon|2026-07-17': dated('2026-07-17', 2, { guesses: [guessResult(1, false)] }),
+      'daily|armor|2026-07-16': dated('2026-07-16', 1, { guesses: [guessResult(5, true)], status: 'won' }),
+    })
+    mockFetch(archiveRoutes())
+    const g = useGame()
+    await g.setMode('archive')
+
+    expect(g.archiveDays.value).toEqual([
+      { date: '2026-07-19', number: 4, status: 'won', guessCount: 2 },
+      { date: '2026-07-18', number: 3, status: 'lost', guessCount: MAX_GUESSES },
+      { date: '2026-07-17', number: 2, status: 'playing', guessCount: 1 },
+      { date: '2026-07-16', number: 1, status: 'new', guessCount: 0 },
+    ])
+  })
+
+  it('openArchiveDay starts a blank board with the archive token and exposes the day info', async () => {
+    mockFetch(archiveRoutes())
+    const g = useGame()
+    await g.setMode('archive')
+    await g.openArchiveDay('2026-07-17')
+
+    expect(g.archiveDate.value).toBe('2026-07-17')
+    expect(g.archiveDays.value).toEqual([])
+    expect(g.items.value).toHaveLength(2)
+    expect(g.daily.value).toEqual({ puzzleToken: 'arc-2026-07-17', date: '2026-07-17', number: 2 })
+    expect(g.board.value).toEqual({
+      token: 'arc-2026-07-17',
+      date: '2026-07-17',
+      number: 2,
+      guesses: [],
+      status: 'playing',
+    })
+    expect(g.splashSrc.value).toContain('token=arc-2026-07-17')
+    expect(fetchCalls('/api/game/archive')[0]![0]).toBe('/api/game/archive?category=weapon&date=2026-07-17')
+  })
+
+  it('restores a day played live with its guesses and the fresh archive token', async () => {
+    seedBoard('daily|weapon|2026-07-19', dated('2026-07-19', 4, { guesses: [guessResult(1, false)] }))
+    mockFetch(archiveRoutes())
+    const g = useGame()
+    await g.setMode('archive')
+    await g.openArchiveDay('2026-07-19')
+
+    expect(g.board.value?.token).toBe('arc-2026-07-19')
+    expect(g.guesses.value).toHaveLength(1)
+    expect(g.status.value).toBe('playing')
+    expect(storedBoards()['daily|weapon|2026-07-19']?.token).toBe('arc-2026-07-19')
+  })
+
+  it('a finished day opens frozen: no guess is sent', async () => {
+    seedBoard(
+      'daily|weapon|2026-07-19',
+      dated('2026-07-19', 4, { guesses: [guessResult(1, true)], status: 'won' }),
+    )
+    mockFetch(archiveRoutes({ '/api/game/guess': guessResult(2, false) }))
+    const g = useGame()
+    await g.setMode('archive')
+    await g.openArchiveDay('2026-07-19')
+
+    expect(g.status.value).toBe('won')
+    await g.submitGuess(2)
+    expect(fetchCalls('/api/game/guess')).toHaveLength(0)
+    expect(g.guesses.value).toHaveLength(1)
+  })
+
+  it('an archive win is stored under the daily key of its date and leaves the streak alone', async () => {
+    mockFetch(archiveRoutes({ '/api/game/guess': guessResult(1, true) }))
+    const g = useGame()
+    await g.setMode('archive')
+    await g.openArchiveDay('2026-07-18')
+    await g.submitGuess(1)
+
+    expect(postedBody('/api/game/guess')).toEqual({ puzzleToken: 'arc-2026-07-18', itemId: 1 })
+    expect(g.status.value).toBe('won')
+    expect(storedBoards()['daily|weapon|2026-07-18']?.status).toBe('won')
+    expect(g.streak.value).toBe(0)
+    expect(getStreak('weapon')).toBe(0)
+  })
+
+  it('closeArchiveDay goes back to the list with the updated result', async () => {
+    mockFetch(archiveRoutes({ '/api/game/guess': guessResult(1, true) }))
+    const g = useGame()
+    await g.setMode('archive')
+    await g.openArchiveDay('2026-07-18')
+    await g.submitGuess(1)
+    await g.closeArchiveDay()
+
+    expect(g.archiveDate.value).toBeNull()
+    expect(g.board.value).toBeNull()
+    expect(g.daily.value).toBeNull()
+    expect(g.archiveDays.value[1]).toEqual({ date: '2026-07-18', number: 3, status: 'won', guessCount: 1 })
+  })
+
+  it('setCategory goes back to the other category\'s list, never the same date', async () => {
+    mockFetch(archiveRoutes())
+    const g = useGame()
+    await g.setMode('archive')
+    await g.openArchiveDay('2026-07-18')
+    await g.setCategory('armor')
+
+    expect(g.archiveDate.value).toBeNull()
+    expect(g.board.value).toBeNull()
+    expect(g.archiveDays.value).toHaveLength(4)
+    // Index access, not `.at(-1)`: the vitest project's `lib` has no ES2022 (see App.vue).
+    const dailyCalls = fetchCalls('/api/game/daily')
+    expect(dailyCalls[dailyCalls.length - 1]![0]).toBe('/api/game/daily?category=armor')
+    expect(fetchCalls('/api/game/archive')).toHaveLength(1)
+  })
+
+  it('setMode(daily) from an archive day loads today\'s daily', async () => {
+    mockFetch(archiveRoutes())
+    const g = useGame()
+    await g.setMode('archive')
+    await g.openArchiveDay('2026-07-18')
+    await g.setMode('daily')
+
+    expect(g.archiveDate.value).toBeNull()
+    expect(g.daily.value).toEqual(DAILY_5)
+    expect(g.board.value?.token).toBe('tok5')
+  })
+
+  it('a late response for a previous day is ignored', async () => {
+    const first = deferred<unknown>()
+    mockFetch(
+      archiveRoutes({
+        '/api/game/archive': (_body: JsonBody, url: string) =>
+          url.includes('2026-07-17') ? first.promise : archiveAnswer(url),
+      }),
+    )
+    const g = useGame()
+    await g.setMode('archive')
+    const slow = g.openArchiveDay('2026-07-17')
+    await g.openArchiveDay('2026-07-18')
+    first.resolve(archiveAnswer('/api/game/archive?category=weapon&date=2026-07-17'))
+    await slow
+
+    expect(g.archiveDate.value).toBe('2026-07-18')
+    expect(g.board.value?.date).toBe('2026-07-18')
+    expect(g.daily.value?.number).toBe(3)
+    expect(g.loading.value).toBe(false)
+  })
+
+  it('a 410 on an archive guess reloads the same day', async () => {
+    let archiveCalls = 0
+    mockFetch(
+      archiveRoutes({
+        '/api/game/archive': (_body: JsonBody, url: string) => ({
+          ...archiveAnswer(url),
+          puzzleToken: `arc${++archiveCalls}`,
+        }),
+        '/api/game/guess': () => problem(410),
+      }),
+    )
+    const g = useGame()
+    await g.setMode('archive')
+    await g.openArchiveDay('2026-07-18')
+    await g.submitGuess(1)
+
+    expect(archiveCalls).toBe(2)
+    expect(g.archiveDate.value).toBe('2026-07-18')
+    expect(g.board.value?.token).toBe('arc2')
+    expect(g.error.value).toBeNull()
+    expect(fetchCalls('/api/game/free')).toHaveLength(0)
+  })
+
+  it('a failing day keeps its context with the error until the player goes back', async () => {
+    mockFetch(archiveRoutes({ '/api/game/archive': () => problem(404) }))
+    const g = useGame()
+    await g.setMode('archive')
+    await g.openArchiveDay('2026-07-17')
+
+    expect(g.archiveDate.value).toBe('2026-07-17')
+    expect(g.board.value).toBeNull()
+    expect(g.error.value?.status).toBe(404)
+
+    await g.closeArchiveDay()
+    expect(g.error.value).toBeNull()
+    expect(g.archiveDays.value).toHaveLength(4)
+  })
+
+  it('clicking the active archive tab on an open day returns to the list', async () => {
+    mockFetch(archiveRoutes())
+    const g = useGame()
+    await g.setMode('archive')
+    await g.openArchiveDay('2026-07-17')
+    expect(g.board.value).not.toBeNull()
+
+    await g.setMode('archive')
+
+    expect(g.mode.value).toBe('archive')
+    expect(g.archiveDate.value).toBeNull()
+    expect(g.board.value).toBeNull()
+    expect(g.archiveDays.value).toHaveLength(4)
+  })
+
+  it('setMode(archive) while already on the list does not fetch again', async () => {
+    mockFetch(archiveRoutes())
+    const g = useGame()
+    await g.setMode('archive')
+    const before = fetchCalls('/api/game/daily').length
+
+    await g.setMode('archive')
+
+    expect(fetchCalls('/api/game/daily')).toHaveLength(before)
+  })
+
+  it('a failing list load exposes the error, then retry() recovers', async () => {
+    mockFetch(archiveRoutes({ '/api/game/daily': () => problem(503) }))
+    const g = useGame()
+    await g.setMode('archive')
+
+    expect(g.error.value?.status).toBe(503)
+    expect(g.archiveDays.value).toEqual([])
+    expect(g.board.value).toBeNull()
+    expect(g.loading.value).toBe(false)
+
+    mockFetch(archiveRoutes())
+    await g.retry()
+
+    expect(g.error.value).toBeNull()
+    expect(g.archiveDays.value).toHaveLength(4)
+  })
+
+  it('openArchiveDay and closeArchiveDay do nothing outside the archive mode', async () => {
+    mockFetch(archiveRoutes())
+    const g = useGame()
+    await g.init()
+    await g.openArchiveDay('2026-07-17')
+    await g.closeArchiveDay()
+
+    expect(g.archiveDate.value).toBeNull()
+    expect(fetchCalls('/api/game/archive')).toHaveLength(0)
+    expect(g.board.value?.token).toBe('tok5')
   })
 })

@@ -70,6 +70,15 @@ const { t, locale } = useI18n()
         >
           {{ t('modes.free') }}
         </button>
+        <button
+          type="button"
+          :class="{ on: mode === 'archive' }"
+          :aria-pressed="mode === 'archive'"
+          :disabled="disabled"
+          @click="emit('update:mode', 'archive')"
+        >
+          {{ t('modes.archive') }}
+        </button>
       </div>
       <div class="mode-switch">
         <button

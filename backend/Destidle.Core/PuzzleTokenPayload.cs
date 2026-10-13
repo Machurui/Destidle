@@ -2,7 +2,7 @@ using System.Globalization;
 
 namespace Destidle.Core;
 
-public enum PuzzleMode { Daily = 1, Free = 2 }
+public enum PuzzleMode { Daily = 1, Free = 2, Archive = 3 }
 
 public sealed record PuzzleTokenPayload(PuzzleMode Mode, ItemCategory Category, Game Game, long BungieHash, DateOnly? Date)
 {

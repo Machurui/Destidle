@@ -22,6 +22,15 @@ public class PuzzleTokenPayloadTests
         Assert.Null(back!.Date);
     }
 
+    [Fact]
+    public void RoundTrip_Archive()
+    {
+        var p = new PuzzleTokenPayload(PuzzleMode.Archive, ItemCategory.Armor, Game.D2, 7L, new DateOnly(2026, 7, 17));
+        Assert.True(PuzzleTokenPayload.TryDeserialize(p.Serialize(), out var back));
+        Assert.Equal(p, back);
+        Assert.Equal(PuzzleMode.Archive, back!.Mode);
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("v0|1|1|1|5|-")]

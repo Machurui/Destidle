@@ -6,6 +6,12 @@
  * Once the game is over, the win/lose panel takes the search box's place,
  * above the board. No router, no store: `g` holds the whole state.
  *
+ * Archive mode: with no opened day the screen is the list of past days
+ * (`ArchiveList`); an opened day is the usual game screen under a
+ * "← ARCHIVE" button, shown even when the day failed to load so the player
+ * can always go back. The loading placeholder replaces the list while it
+ * loads empty, so the "no past day" message never flashes.
+ *
  * DEC-010: the category/mode switches are disabled only while a guess is
  * being submitted; the "new game" buttons of the panels are disabled while
  * a guess or a puzzle load is in flight (`busy`), which also prevents a
@@ -21,6 +27,7 @@
 import { computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useGame } from '@/composables/useGame'
+import ArchiveList from '@/components/ArchiveList.vue'
 import TopBar from '@/components/TopBar.vue'
 import IntelBar from '@/components/IntelBar.vue'
 import SplashFrame from '@/components/SplashFrame.vue'
@@ -43,6 +50,8 @@ const busy = computed(() => g.submitting.value || g.loading.value)
  * not expose ES2022 and `vue-tsc --build` checks this file there too.
  */
 const wonTarget = computed(() => g.guesses.value[g.guesses.value.length - 1]?.guess ?? null)
+/** Archive mode without an opened day: the list of past days replaces the game screen. */
+const showArchiveList = computed(() => g.mode.value === 'archive' && g.archiveDate.value === null)
 </script>
 
 <template>
@@ -64,56 +73,77 @@ const wonTarget = computed(() => g.guesses.value[g.guesses.value.length - 1]?.gu
       <button type="button" class="btn" @click="g.retry()">{{ t('errors.retry') }}</button>
     </div>
 
-    <template v-if="g.board.value">
-      <IntelBar
-        :category="g.category.value"
-        :mode="g.mode.value"
-        :guess-count="g.guesses.value.length"
-        :max="g.MAX_GUESSES"
-        :pool-size="g.poolSize.value"
-        :daily-number="g.daily.value?.number"
-        :streak="g.streak.value"
+    <template v-if="showArchiveList">
+      <ArchiveList
+        v-if="g.archiveDays.value.length > 0 || (!g.loading.value && !g.error.value)"
+        :days="g.archiveDays.value"
+        :disabled="busy"
+        @open="g.openArchiveDay"
       />
-
-      <SplashFrame :src="g.splashSrc.value" :level="g.splashLevel.value" />
-
-      <SearchBox
-        v-if="g.status.value === 'playing' && !g.loading.value"
-        :items="g.items.value"
-        :used-ids="g.usedIds.value"
-        :category="g.category.value"
-        @pick="g.submitGuess"
-      />
-
-      <!-- Game over: the answer takes the search box's place, above the board. -->
-      <WinPanel
-        v-if="g.status.value === 'won' && wonTarget"
-        :target="wonTarget"
-        :guess-count="g.guesses.value.length"
-        :mode="g.mode.value"
-        :category="g.category.value"
-        :daily-number="g.daily.value?.number"
-        :busy="busy"
-        @new-game="g.newFree"
-      />
-      <LosePanel
-        v-if="g.status.value === 'lost' && g.board.value.revealed"
-        :target="g.board.value.revealed"
-        :mode="g.mode.value"
-        :busy="busy"
-        @new-game="g.newFree"
-      />
-
-      <GuessBoard
-        v-if="g.guesses.value.length > 0"
-        :category="g.category.value"
-        :guesses="g.guesses.value"
-        :done="g.status.value !== 'playing'"
-      />
-
-      <Legend v-if="g.status.value === 'playing' && g.guesses.value.length === 0" />
+      <div v-else-if="g.loading.value" class="loading">{{ t('loading') }}</div>
     </template>
-    <div v-else-if="g.loading.value" class="loading">{{ t('loading') }}</div>
+
+    <template v-else>
+      <!-- Archive day: way back to the list, even when the day failed to load. -->
+      <div v-if="g.mode.value === 'archive'" class="archive-back">
+        <button type="button" class="btn" :disabled="g.submitting.value" @click="g.closeArchiveDay()">
+          {{ t('archive.back') }}
+        </button>
+      </div>
+
+      <template v-if="g.board.value">
+        <IntelBar
+          :category="g.category.value"
+          :mode="g.mode.value"
+          :guess-count="g.guesses.value.length"
+          :max="g.MAX_GUESSES"
+          :pool-size="g.poolSize.value"
+          :daily-number="g.daily.value?.number"
+          :streak="g.streak.value"
+        />
+
+        <SplashFrame :src="g.splashSrc.value" :level="g.splashLevel.value" />
+
+        <SearchBox
+          v-if="g.status.value === 'playing' && !g.loading.value"
+          :items="g.items.value"
+          :used-ids="g.usedIds.value"
+          :category="g.category.value"
+          @pick="g.submitGuess"
+        />
+
+        <!-- Game over: the answer takes the search box's place, above the board. -->
+        <WinPanel
+          v-if="g.status.value === 'won' && wonTarget"
+          :target="wonTarget"
+          :guess-count="g.guesses.value.length"
+          :mode="g.mode.value"
+          :category="g.category.value"
+          :daily-number="g.daily.value?.number"
+          :busy="busy"
+          @new-game="g.newFree"
+          @back="g.closeArchiveDay"
+        />
+        <LosePanel
+          v-if="g.status.value === 'lost' && g.board.value.revealed"
+          :target="g.board.value.revealed"
+          :mode="g.mode.value"
+          :busy="busy"
+          @new-game="g.newFree"
+          @back="g.closeArchiveDay"
+        />
+
+        <GuessBoard
+          v-if="g.guesses.value.length > 0"
+          :category="g.category.value"
+          :guesses="g.guesses.value"
+          :done="g.status.value !== 'playing'"
+        />
+
+        <Legend v-if="g.status.value === 'playing' && g.guesses.value.length === 0" />
+      </template>
+      <div v-else-if="g.loading.value" class="loading">{{ t('loading') }}</div>
+    </template>
 
     <FooterBar />
   </div>

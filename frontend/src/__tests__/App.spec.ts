@@ -7,6 +7,7 @@ import { useGame } from '@/composables/useGame'
 import type { UseGame } from '@/composables/useGame'
 import type { StoredBoard } from '@/composables/useLocalState'
 import { ApiError } from '@/lib/api'
+import type { ArchiveDay } from '@/composables/archiveDays'
 import type { Category, DailyInfo, GuessResult, ItemDisplay, ItemSummary, Mode } from '@/lib/api'
 
 /**
@@ -30,6 +31,8 @@ vi.mock('@/composables/useGame', async () => {
   const loading = ref(false)
   const submitting = ref(false)
   const streak = ref(0)
+  const archiveDate = ref<string | null>(null)
+  const archiveDays = shallowRef<ArchiveDay[]>([])
 
   const status = computed(() => board.value?.status ?? 'playing')
   const guesses = computed<GuessResult[]>(() => board.value?.guesses ?? [])
@@ -54,6 +57,8 @@ vi.mock('@/composables/useGame', async () => {
     loading,
     submitting,
     streak,
+    archiveDate,
+    archiveDays,
     status,
     guesses,
     usedIds,
@@ -66,6 +71,8 @@ vi.mock('@/composables/useGame', async () => {
     setMode: vi.fn((_m: Mode) => Promise.resolve()),
     submitGuess: vi.fn((_id: number) => Promise.resolve()),
     newFree: vi.fn(() => Promise.resolve()),
+    openArchiveDay: vi.fn((_date: string) => Promise.resolve()),
+    closeArchiveDay: vi.fn(() => Promise.resolve()),
     MAX_GUESSES,
   }
   return { useGame: () => fake, MAX_GUESSES, MAX_SPLASH_LEVEL }
@@ -172,7 +179,18 @@ function resetGame() {
   game.loading.value = false
   game.submitting.value = false
   game.streak.value = 0
-  for (const fn of [game.init, game.retry, game.setCategory, game.setMode, game.submitGuess, game.newFree]) {
+  game.archiveDate.value = null
+  game.archiveDays.value = []
+  for (const fn of [
+    game.init,
+    game.retry,
+    game.setCategory,
+    game.setMode,
+    game.submitGuess,
+    game.newFree,
+    game.openArchiveDay,
+    game.closeArchiveDay,
+  ]) {
     vi.mocked(fn).mockClear()
   }
 }
@@ -475,5 +493,93 @@ describe('App shell', () => {
       expect(switchButton(wrapper, 'LIBRE').classes('on')).toBe(true)
       expect(switchButton(wrapper, 'QUOTIDIEN').classes('on')).toBe(false)
     })
+  })
+})
+
+describe('App — archive', () => {
+  const DAYS: ArchiveDay[] = [
+    { date: '2026-07-19', number: 4, status: 'won', guessCount: 3 },
+    { date: '2026-07-18', number: 3, status: 'new', guessCount: 0 },
+  ]
+  const ARCHIVE_DAY: DailyInfo = { puzzleToken: 'arc', date: '2026-07-18', number: 3 }
+
+  beforeEach(() => {
+    localStorage.clear()
+    setLocale('fr')
+    resetGame()
+    game.mode.value = 'archive'
+  })
+
+  afterEach(() => {
+    for (const wrapper of mounted) wrapper.unmount()
+    mounted = []
+  })
+
+  it('shows the list of days, without the game blocks, and opens a day on click', async () => {
+    game.archiveDays.value = DAYS
+    const wrapper = mountApp()
+    expect(wrapper.findAll('.archive-row')).toHaveLength(2)
+    expect(wrapper.find('.intel').exists()).toBe(false)
+    expect(wrapper.find('.archive-back').exists()).toBe(false)
+    await wrapper.findAll('.archive-row')[1]!.trigger('click')
+    expect(game.openArchiveDay).toHaveBeenCalledWith('2026-07-18')
+  })
+
+  it('shows the loading placeholder, not the empty message, while the list loads', () => {
+    game.loading.value = true
+    const wrapper = mountApp()
+    expect(wrapper.find('.loading').text()).toBe('Chargement…')
+    expect(wrapper.find('.archive-empty').exists()).toBe(false)
+  })
+
+  it('shows the empty message once the list is loaded with no past day', () => {
+    const wrapper = mountApp()
+    expect(wrapper.find('.archive-empty').exists()).toBe(true)
+    expect(wrapper.find('.loading').exists()).toBe(false)
+  })
+
+  it('an archive day shows ← ARCHIVE above its board and goes back on click', async () => {
+    game.archiveDate.value = '2026-07-18'
+    game.daily.value = ARCHIVE_DAY
+    game.board.value = board({ token: 'arc', date: '2026-07-18', number: 3 })
+    const wrapper = mountApp()
+
+    expect(wrapper.find('.archive-row').exists()).toBe(false)
+    expect(stats(wrapper)['DÉFI']).toBe('#3')
+    expect(stats(wrapper)['MODE']).toBe('ARCHIVE')
+    const back = wrapper.find('.archive-back button')
+    expect(back.text()).toBe('← ARCHIVE')
+    await back.trigger('click')
+    expect(game.closeArchiveDay).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps ← ARCHIVE when the day failed to load (no board)', () => {
+    game.archiveDate.value = '2026-07-18'
+    game.error.value = new ApiError(404)
+    const wrapper = mountApp()
+    expect(wrapper.find('.error-banner').exists()).toBe(true)
+    expect(wrapper.find('.archive-back button').exists()).toBe(true)
+  })
+
+  it('disables ← ARCHIVE while a guess is submitted', () => {
+    game.archiveDate.value = '2026-07-18'
+    game.board.value = board({ date: '2026-07-18', number: 3 })
+    game.submitting.value = true
+    expect(mountApp().find('.archive-back button').attributes('disabled')).toBeDefined()
+  })
+
+  it('the end panels of an archive day go back to the list', async () => {
+    game.archiveDate.value = '2026-07-18'
+    game.daily.value = ARCHIVE_DAY
+    game.board.value = board({ date: '2026-07-18', number: 3, guesses: guesses(3, true), status: 'won' })
+    const won = mountApp()
+    await won.find('.win-actions .btn.primary').trigger('click')
+    expect(game.closeArchiveDay).toHaveBeenCalledTimes(1)
+
+    game.board.value = board({ date: '2026-07-18', number: 3, guesses: guesses(8), status: 'lost', revealed: target })
+    const lost = mountApp()
+    await lost.find('.win-actions .btn.primary').trigger('click')
+    expect(game.closeArchiveDay).toHaveBeenCalledTimes(2)
+    expect(game.newFree).not.toHaveBeenCalled()
   })
 })

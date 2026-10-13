@@ -13,15 +13,20 @@ public static class GameEndpoints
         {
             if (!ItemsEndpoints.TryParseCategory(category, out var cat))
                 return Results.Problem("category doit être weapon ou armor", statusCode: 400);
-            var today = clock.TodayParis();
-            var pool = await PoolAsync(db, cat);
-            if (pool.Count == 0) return Results.Problem("base vide — lancez l'importer", statusCode: 503);
-            var pick = pool[DailyPicker.PickIndex(cfg["Game:HmacSecret"]!, today, cat, pool.Count)];
-            var token = tokens.Protect(new PuzzleTokenPayload(PuzzleMode.Daily, cat, pick.Game, pick.BungieHash, today));
-            // Présence et format garantis par StartupGuard (SEC-02) : plus de repli codé en dur.
-            var launch = DateOnly.ParseExact(cfg["Game:LaunchDate"]!, StartupGuard.LaunchDateFormat, CultureInfo.InvariantCulture);
-            return Results.Ok(new DailyResponse(token, today.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-                today.DayNumber - launch.DayNumber + 1));
+            return await DatedPuzzleAsync(PuzzleMode.Daily, cat, clock.TodayParis(), db, tokens, cfg);
+        });
+
+        // Archive : un jour passé, du lancement à la veille (Paris) ; même cible que le daily de cette date.
+        app.MapGet("/api/game/archive", async (string? category, string? date, AppDb db, GameClock clock,
+            PuzzleTokenService tokens, IConfiguration cfg) =>
+        {
+            if (!ItemsEndpoints.TryParseCategory(category, out var cat))
+                return Results.Problem("category doit être weapon ou armor", statusCode: 400);
+            if (!DateOnly.TryParseExact(date, DateFormat, CultureInfo.InvariantCulture, DateTimeStyles.None, out var day))
+                return Results.Problem("date doit être au format yyyy-MM-dd", statusCode: 400);
+            if (day < LaunchDate(cfg) || day >= clock.TodayParis())
+                return Results.Problem("aucun défi d'archive pour cette date", statusCode: 404);
+            return await DatedPuzzleAsync(PuzzleMode.Archive, cat, day, db, tokens, cfg);
         });
 
         app.MapPost("/api/game/free", async (FreeRequest req, AppDb db, PuzzleTokenService tokens) =>
@@ -61,13 +66,35 @@ public static class GameEndpoints
     /// </summary>
     public const int MaxTokenLength = 512;
 
+    private const string DateFormat = "yyyy-MM-dd";
+
+    // Présence et format garantis par StartupGuard (SEC-02) : plus de repli codé en dur.
+    private static DateOnly LaunchDate(IConfiguration cfg) =>
+        DateOnly.ParseExact(cfg["Game:LaunchDate"]!, StartupGuard.LaunchDateFormat, CultureInfo.InvariantCulture);
+
+    /// <summary>
+    /// Défi daté (daily du jour ou archive) : cible = HMAC(date, catégorie) modulo la taille du pool actuel,
+    /// numéro = jours depuis le lancement + 1. 503 si la base est vide.
+    /// </summary>
+    private static async Task<IResult> DatedPuzzleAsync(PuzzleMode mode, ItemCategory cat, DateOnly day,
+        AppDb db, PuzzleTokenService tokens, IConfiguration cfg)
+    {
+        var pool = await PoolAsync(db, cat);
+        if (pool.Count == 0) return Results.Problem("base vide — lancez l'importer", statusCode: 503);
+        var pick = pool[DailyPicker.PickIndex(cfg["Game:HmacSecret"]!, day, cat, pool.Count)];
+        var token = tokens.Protect(new PuzzleTokenPayload(mode, cat, pick.Game, pick.BungieHash, day));
+        return Results.Ok(new DailyResponse(token, day.ToString(DateFormat, CultureInfo.InvariantCulture),
+            day.DayNumber - LaunchDate(cfg).DayNumber + 1));
+    }
+
     private static async Task<List<Item>> PoolAsync(AppDb db, ItemCategory cat) =>
         await db.Items.Where(i => i.Category == cat)
             .OrderBy(i => i.Game).ThenBy(i => i.BungieHash).ToListAsync();
 
     /// <summary>
     /// CT-03 : 400 si le token est absent (erreur de forme) ou trop long (SEC-06) ; 410 s'il est illisible (DEC-006),
-    /// si le daily est d'un autre jour ou si la cible n'est plus en base.
+    /// si le daily est d'un autre jour ou si la cible n'est plus en base. Un token d'archive n'expire pas : sa date,
+    /// vérifiée à la délivrance, est passée par construction.
     /// </summary>
     public static async Task<(Item? target, IResult? error)> ResolveTargetAsync(
         string? token, PuzzleTokenService tokens, GameClock clock, AppDb db)

@@ -383,3 +383,49 @@ describe('light.gg link (SEC-F8)', () => {
     expect(w.find('a').exists()).toBe(false)
   })
 })
+
+describe('WinPanel / LosePanel in archive mode', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    setLocale('fr')
+  })
+
+  afterEach(() => {
+    stubClipboard(undefined)
+  })
+
+  it('WinPanel shares the daily header and offers ← ARCHIVE instead of a new game', async () => {
+    const writeText = vi.fn(() => Promise.resolve())
+    stubClipboard({ writeText })
+    const w = mountWin({ mode: 'archive', dailyNumber: 12, guessCount: 3 })
+
+    const primary = w.find('.win-actions button.btn.primary')
+    expect(primary.text()).toBe('← ARCHIVE')
+    await primary.trigger('click')
+    expect(w.emitted('back')).toEqual([[]])
+    expect(w.emitted('new-game')).toBeUndefined()
+
+    await copyButton(w).trigger('click')
+    expect(writeText).toHaveBeenCalledWith('DESTIDLE #12 — ARMES\nTrouvé en 3 essais\n▰▰▰▱▱▱▱▱')
+  })
+
+  it('LosePanel offers ← ARCHIVE in archive mode', async () => {
+    const w = mountLose({ mode: 'archive' })
+    const buttons = w.findAll('.win-actions button')
+    expect(buttons).toHaveLength(1)
+    expect(buttons[0]!.text()).toBe('← ARCHIVE')
+    await buttons[0]!.trigger('click')
+    expect(w.emitted('back')).toEqual([[]])
+    expect(w.emitted('new-game')).toBeUndefined()
+  })
+
+  it('the ← ARCHIVE buttons are disabled while busy', () => {
+    expect(mountWin({ mode: 'archive', dailyNumber: 12, busy: true }).find('.btn.primary').attributes('disabled')).toBeDefined()
+    expect(mountLose({ mode: 'archive', busy: true }).find('.btn.primary').attributes('disabled')).toBeDefined()
+  })
+
+  it('daily mode still has no ← ARCHIVE nor new-game button', () => {
+    expect(mountWin({ mode: 'daily', dailyNumber: 12 }).find('.btn.primary').exists()).toBe(false)
+    expect(mountLose({ mode: 'daily' }).find('.btn.primary').exists()).toBe(false)
+  })
+})

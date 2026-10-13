@@ -103,4 +103,11 @@ describe('IntelBar', () => {
       'The signal sharpens with each wrong guess. Identify the exotic weapon.',
     )
   })
+
+  it('shows the puzzle number and the archive mode, without the streak, in archive mode', () => {
+    const s = stats(mountIntel({ mode: 'archive', dailyNumber: 12, streak: 4 }))
+    expect(s['DÉFI']).toBe('#12')
+    expect(s['MODE']).toBe('ARCHIVE')
+    expect(s['SÉRIE']).toBeUndefined()
+  })
 })

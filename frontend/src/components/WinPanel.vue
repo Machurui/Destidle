@@ -3,11 +3,12 @@
  * Victory panel (REQ-012 / REQ-016, CT-05): "// TARGET ACQUIRED", the found
  * target with its meta line, the ▰▱ result blocks and the share button.
  * The "new game" button is the only user entry point of `newFree()` (review
- * reservation c), exists in free mode only, and `busy` disables it while a
+ * reservation c) and exists in free mode only; in archive mode a "← ARCHIVE"
+ * button (`back`) returns to the list of days. `busy` disables both while a
  * request is in flight (review reservation d).
  *
- * Share text (spec §8, REQ-016): the `DESTIDLE #N — CAT` header (or the
- * free-play one), the localized "solved in X guesses" line and the blocks —
+ * Share text (spec §8, REQ-016): the `DESTIDLE #N — CAT` header for a
+ * dated puzzle (daily or archive day), the free-play one otherwise, the localized "solved in X guesses" line and the blocks —
  * never the target name, which would spoil the daily for whoever reads it.
  *
  * SEC-F8: `target.lightGgUrl` may come back from localStorage unchanged, so
@@ -26,7 +27,7 @@ const props = defineProps<{
   dailyNumber?: number
   busy?: boolean
 }>()
-const emit = defineEmits<{ (e: 'new-game'): void }>()
+const emit = defineEmits<{ (e: 'new-game'): void; (e: 'back'): void }>()
 const { t, locale } = useI18n()
 
 /**
@@ -46,7 +47,7 @@ const solvedLine = computed(() => t('win.solved', { n: props.guessCount }, props
 const shareText = computed(() => {
   const cat = t(`categories.${props.category}`)
   const head =
-    props.mode === 'daily' && props.dailyNumber !== undefined
+    props.mode !== 'free' && props.dailyNumber !== undefined
       ? t('share.daily', { n: props.dailyNumber, cat })
       : t('share.free', { cat })
   return `${head}\n${solvedLine.value}\n${blocks.value}`
@@ -114,13 +115,22 @@ onBeforeUnmount(() => {
     <div class="win-actions">
       <button type="button" class="btn" @click="copy">{{ copied ? t('win.copied') : t('win.copy') }}</button>
       <button
-        v-if="mode !== 'daily'"
+        v-if="mode === 'free'"
         type="button"
         class="btn primary"
         :disabled="busy"
         @click="emit('new-game')"
       >
         {{ t('win.new') }}
+      </button>
+      <button
+        v-else-if="mode === 'archive'"
+        type="button"
+        class="btn primary"
+        :disabled="busy"
+        @click="emit('back')"
+      >
+        {{ t('archive.back') }}
       </button>
     </div>
   </div>

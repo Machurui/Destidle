@@ -22,8 +22,9 @@ function switchButtons(wrapper: VueWrapper, group: 0 | 1 | 2) {
   const groups = wrapper.findAll('.mode-switch')
   expect(groups).toHaveLength(3)
   const buttons = groups[group]!.findAll('button')
-  expect(buttons).toHaveLength(2)
-  return [buttons[0]!, buttons[1]!] as const
+  // Category and locale: two buttons; mode: daily, free, archive.
+  expect(buttons).toHaveLength(group === 1 ? 3 : 2)
+  return [buttons[0]!, buttons[1]!, buttons[2]] as const
 }
 
 function buttonByText(wrapper: VueWrapper, text: string) {
@@ -98,7 +99,7 @@ describe('TopBar', () => {
   it('every button is type="button"', () => {
     const wrapper = mountBar()
     const buttons = wrapper.findAll('button')
-    expect(buttons).toHaveLength(6)
+    expect(buttons).toHaveLength(7)
     for (const b of buttons) expect(b.attributes('type')).toBe('button')
   })
 
@@ -118,6 +119,21 @@ describe('TopBar', () => {
     expect(wrapper.emitted('update:category')).toBeUndefined()
   })
 
+  it('emits update:mode with "archive" when ARCHIVE is clicked, and marks it when current', async () => {
+    const wrapper = mountBar()
+    const [, , archive] = switchButtons(wrapper, 1)
+    expect(archive!.text()).toBe('ARCHIVE')
+    expect(archive!.attributes('aria-pressed')).toBe('false')
+    await archive!.trigger('click')
+    expect(wrapper.emitted('update:mode')).toEqual([['archive']])
+
+    const current = mountBar({ mode: 'archive' })
+    const [daily, , archiveOn] = switchButtons(current, 1)
+    expect(archiveOn!.classes()).toContain('on')
+    expect(archiveOn!.attributes('aria-pressed')).toBe('true')
+    expect(daily.classes()).not.toContain('on')
+  })
+
   it('does not disable the category/mode switches by default', () => {
     const wrapper = mountBar()
     const [weapon, armor] = switchButtons(wrapper, 0)
@@ -126,11 +142,11 @@ describe('TopBar', () => {
   })
 
   describe('with disabled: true', () => {
-    it('disables the four category/mode buttons and swallows their clicks', async () => {
+    it('disables the five category/mode buttons and swallows their clicks', async () => {
       const wrapper = mountBar({ disabled: true })
       const [weapon, armor] = switchButtons(wrapper, 0)
-      const [daily, free] = switchButtons(wrapper, 1)
-      for (const b of [weapon, armor, daily, free]) {
+      const [daily, free, archive] = switchButtons(wrapper, 1)
+      for (const b of [weapon, armor, daily, free, archive!]) {
         expect(b.attributes('disabled')).toBeDefined()
         await b.trigger('click')
       }

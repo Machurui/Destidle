@@ -2,8 +2,9 @@
  * Local persistence of the game state (REQ-013, REQ-015).
  *
  * Everything lives in `localStorage` under a single JSON key (`destidle.v1`):
- * - one board per (mode, category[, date]) — the four mode × category
- *   combinations each have their own state, daily boards are keyed by date;
+ * - one board per (mode, category[, date]) — free boards per category, daily
+ *   boards per category and date, kept after their day: the archive replays a
+ *   past day under the daily key of its date (one board per day);
  * - one streak per category (consecutive daily wins).
  *
  * Any corrupted or unreadable content is silently replaced by an empty store,
@@ -216,9 +217,12 @@ function save(store: Store): void {
   }
 }
 
-/** `daily|weapon|2026-07-16` or `free|weapon`. */
+/**
+ * `daily|weapon|2026-07-16` or `free|weapon`. An archive day shares the key of
+ * the daily board of its date: a day played live opens as it was left.
+ */
 export function boardKey(mode: Mode, category: Category, date?: string): string {
-  return mode === 'daily' ? `daily|${category}|${date ?? ''}` : `free|${category}`
+  return mode === 'free' ? `free|${category}` : `daily|${category}|${date ?? ''}`
 }
 
 export function loadBoard(key: string): StoredBoard | null {
@@ -231,19 +235,14 @@ export function saveBoard(key: string, board: StoredBoard): void {
   save(store)
 }
 
-/** Removes every daily board of `category` except the one dated `keepDate`. */
-export function clearDailyBoards(category: Category, keepDate: string): void {
-  const store = load()
+/** Every stored daily board of `category`, keyed by its date (a single storage read). */
+export function loadDailyBoards(category: Category): Record<string, StoredBoard> {
   const prefix = `daily|${category}|`
-  const keep = boardKey('daily', category, keepDate)
-  let changed = false
-  for (const key of Object.keys(store.boards)) {
-    if (key.startsWith(prefix) && key !== keep) {
-      delete store.boards[key]
-      changed = true
-    }
+  const out: Record<string, StoredBoard> = {}
+  for (const [key, board] of Object.entries(load().boards)) {
+    if (key.startsWith(prefix)) out[key.slice(prefix.length)] = board
   }
-  if (changed) save(store)
+  return out
 }
 
 /**

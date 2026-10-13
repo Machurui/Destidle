@@ -1,6 +1,6 @@
 {
   "brand": { "sub": "// RECON EXOTIQUE" },
-  "modes": { "daily": "QUOTIDIEN", "free": "LIBRE" },
+  "modes": { "daily": "QUOTIDIEN", "free": "LIBRE", "archive": "ARCHIVE" },
   "categories": { "weapon": "ARMES", "armor": "ARMURES" },
   "intel": {
     "tag": "BRIEFING",
@@ -12,6 +12,7 @@
   "board": { "weapon": "Arme", "armor": "Armure", "rarity": "Rareté", "season": "Saison", "slot": "Slot", "type": "Type", "element": "Élément", "class": "Classe", "game": "Jeu" },
   "win": { "title": "// CIBLE ACQUISE", "solved": "Trouvé en {n} essai | Trouvé en {n} essais", "copy": "COPIER LE RÉSULTAT", "copied": "COPIÉ !", "new": "NOUVELLE PARTIE", "more": "En savoir plus sur light.gg" },
   "lose": { "title": "// CIBLE ÉCHAPPÉE", "retry": "RÉESSAYER" },
+  "archive": { "title": "// ARCHIVE", "back": "← ARCHIVE", "empty": "Aucun défi passé pour l'instant : revenez demain.", "won": "Trouvé en {n}/{max}", "lost": "Perdu", "playing": "En cours {n}/{max}", "new": "À jouer" },
   "legend": { "title": "// LÉGENDE", "hit": "Correspondance exacte", "near": "Proche (saison ±2)", "miss": "Différent", "later": "La cible est plus récente", "earlier": "La cible est plus ancienne" },
   "footer": { "data": "Données : exotiques Destiny 1 & 2 — API Bungie", "built": "Fait pour les Gardiens" },
   "share": { "daily": "DESTIDLE #{n} — {cat}", "free": "DESTIDLE — Partie libre ({cat})", "solved": "{name} en {count} essai | {name} en {count} essais", "failed": "{name} non identifiée" },
